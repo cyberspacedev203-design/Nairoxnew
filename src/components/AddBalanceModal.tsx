@@ -10,7 +10,7 @@ const FEE_PERCENT = 2;
 const BANK_DETAILS = {
   bankName: "Paga",
   accountName: "David Odum",
-  accountNumber: "6953944578",
+  accountNumber: "1003135154",
 };
 
 export const AddBalanceModal = ({ open, onOpenChange, onSuccess }: any) => {
