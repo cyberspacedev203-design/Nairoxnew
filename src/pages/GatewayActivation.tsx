@@ -108,7 +108,7 @@ const GatewayActivation = () => {
               <span>Transfer ₦13,250 to the account details below</span>
             </p>
             <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-              <p className="text-sm font-semibold">Bank Details</p>
+              <p className="text-sm font-semibold">Bank Details.</p>
               <div className="space-y-1 text-sm">
                 <div className="flex items-center justify-between">
                   <p className="font-mono">Account: 1003135154</p>
