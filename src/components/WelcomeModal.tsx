@@ -15,13 +15,13 @@ export const WelcomeModal = ({ userId }: WelcomeModalProps) => {
     if (!userId) return;
 
     const storageKey = `welcome_modal_last_shown_${userId}`;
-    const sessionKey = `welcome_modal_session_shown_${userId}`;
     const lastShownTime = localStorage.getItem(storageKey);
-    const seenThisSession = sessionStorage.getItem(sessionKey);
     const now = Date.now();
+    const lastShown = lastShownTime ? parseInt(lastShownTime, 10) : 0;
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-    if (!seenThisSession && (!lastShownTime || now - parseInt(lastShownTime) >= TWENTY_FOUR_HOURS_MS)) {
+    if (!lastShownTime || now - lastShown >= TWENTY_FOUR_HOURS_MS) {
+      localStorage.setItem(storageKey, now.toString());
       setIsOpen(true);
       setStep("initial");
     }
@@ -42,12 +42,8 @@ export const WelcomeModal = ({ userId }: WelcomeModalProps) => {
       const storageKey = userId
         ? `welcome_modal_last_shown_${userId}`
         : "welcome_modal_last_shown";
-      const sessionKey = userId
-        ? `welcome_modal_session_shown_${userId}`
-        : "welcome_modal_session_shown";
 
       localStorage.setItem(storageKey, Date.now().toString());
-      sessionStorage.setItem(sessionKey, "true");
       setIsOpen(false);
     }
   };
