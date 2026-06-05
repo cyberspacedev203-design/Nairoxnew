@@ -121,7 +121,7 @@ const GatewayActivation = () => {
             <NarrationSection text="Activation fee" />
             <p className="flex gap-2">
               <span className="font-bold">2.</span>
-              <span>Upload your payment receipt below</span>
+              <span>Upload your payment receipt below.</span>
             </p>
             <p className="flex gap-2">
               <span className="font-bold">3.</span>
