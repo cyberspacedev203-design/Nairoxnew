@@ -2,22 +2,30 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-export const WelcomeModal = () => {
+interface WelcomeModalProps {
+  userId?: string | null;
+}
+
+export const WelcomeModal = ({ userId }: WelcomeModalProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<"initial" | "verification">( "initial");
+  const [step, setStep] = useState<"initial" | "verification">("initial");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check if user has completed the Telegram verification in the last 24 hours
-    const lastShownTime = localStorage.getItem("telegram_modal_last_shown");
+    if (!userId) return;
+
+    const storageKey = `welcome_modal_last_shown_${userId}`;
+    const sessionKey = `welcome_modal_session_shown_${userId}`;
+    const lastShownTime = localStorage.getItem(storageKey);
+    const seenThisSession = sessionStorage.getItem(sessionKey);
     const now = Date.now();
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-    
-    if (!lastShownTime || (now - parseInt(lastShownTime)) >= TWENTY_FOUR_HOURS_MS) {
+
+    if (!seenThisSession && (!lastShownTime || now - parseInt(lastShownTime) >= TWENTY_FOUR_HOURS_MS)) {
       setIsOpen(true);
       setStep("initial");
     }
-  }, []);
+  }, [userId]);
 
   const handleJoinTelegram = () => {
     if (step === "initial") {
@@ -31,8 +39,15 @@ export const WelcomeModal = () => {
         setStep("verification");
       }, 5000);
     } else if (step === "verification") {
-      // Mark as shown and store timestamp for 24-hour throttle
-      localStorage.setItem("telegram_modal_last_shown", Date.now().toString());
+      const storageKey = userId
+        ? `welcome_modal_last_shown_${userId}`
+        : "welcome_modal_last_shown";
+      const sessionKey = userId
+        ? `welcome_modal_session_shown_${userId}`
+        : "welcome_modal_session_shown";
+
+      localStorage.setItem(storageKey, Date.now().toString());
+      sessionStorage.setItem(sessionKey, "true");
       setIsOpen(false);
     }
   };

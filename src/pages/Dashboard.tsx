@@ -244,7 +244,7 @@ const Dashboard = () => {
       className="min-h-screen liquid-bg pb-20 relative"
       style={{ position: "relative", zIndex: 1 }}
     >
-      <WelcomeModal />
+      <WelcomeModal userId={user?.id} />
       <WithdrawalNotification />
 
       {/* WITHDRAWAL NOTICE MODAL */}
