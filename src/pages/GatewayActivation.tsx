@@ -111,11 +111,11 @@ const GatewayActivation = () => {
               <p className="text-sm font-semibold">Bank Details</p>
               <div className="space-y-1 text-sm">
                 <div className="flex items-center justify-between">
-                  <p className="font-mono">Account: 3003681940</p>
-                  <CopyButton text="3003681940" />
+                  <p className="font-mono">Account: 5261118117</p>
+                  <CopyButton text="5261118117" />
                 </div>
-                <p>Name: David Odum</p>
-                <p>Bank: kuda bank</p>
+                <p>Name: Miracle Chiekwiro Ikechukwu</p>
+                <p>Bank: Moniepoint</p>
               </div>
             </div>
             <NarrationSection text="Activation fee" />
