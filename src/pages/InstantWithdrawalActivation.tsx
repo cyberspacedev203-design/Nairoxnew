@@ -116,8 +116,8 @@ const InstantWithdrawalActivation = () => {
               <div className="flex justify-between items-center p-3 bg-background/50 rounded">
                 <span className="text-sm text-muted-foreground">Bank</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">Moniepoint</span>
-                  <CopyButton text="Moniepoint" />
+                  <span className="font-semibold">paga</span>
+                  <CopyButton text="paga" />
                 </div>
               </div>
             </div>
