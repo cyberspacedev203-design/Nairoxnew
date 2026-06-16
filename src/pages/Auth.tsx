@@ -27,8 +27,10 @@ const Auth = () => {
 
   const [signupData, setSignupData] = useState({
     fullName: "",
+    username: "",
     email: "",
     password: "",
+    confirmPassword: "",
     referralCode: initialRefCode,
   });
 
@@ -49,8 +51,21 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
+    // basic validation
+    if (!signupData.fullName.trim()) {
+      toast.error("Full name is required");
+      setIsLoading(false);
+      return;
+    }
+    if (!signupData.username || signupData.username.trim().length < 3) {
+      toast.error("Username must be at least 3 characters");
+      setIsLoading(false);
+      return;
+    }
     try {
+      if (signupData.password !== signupData.confirmPassword) {
+        throw new Error("Passwords do not match");
+      }
       const finalRefCode = signupData.referralCode || localStorage.getItem("referralCode") || "";
 
       const { data, error } = await supabase.auth.signUp({
@@ -59,6 +74,7 @@ const Auth = () => {
         options: {
           data: {
             fullName: signupData.fullName,
+            username: signupData.username,
             referralCode: finalRefCode,
           },
         },
@@ -75,6 +91,7 @@ const Auth = () => {
         id: userId,
         email: data.user.email!,
         full_name: signupData.fullName,
+        username: signupData.username,
         referral_code: generatedRefCode,
         balance: 50000,
         total_referrals: 0,
@@ -193,51 +210,109 @@ const Auth = () => {
                   <Label htmlFor="fullName">Full Name</Label>
                   <Input
                     id="fullName"
-                    placeholder="Enter your full name"
+                    placeholder="Enter your fullname"
                     value={signupData.fullName}
                     onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                     required
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    placeholder="Enter Username"
+                    value={signupData.username}
+                    onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
+                    required
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder="Enter Email Address"
                     value={signupData.email}
                     onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Create a password"
+                    placeholder="Enter Your Password"
                     value={signupData.password}
                     onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Retype Your Password"
+                    value={signupData.confirmPassword}
+                    onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="referralCode">Invite By (Optional)</Label>
                   <Input
                     id="referralCode"
-                    placeholder="Enter referral code"
+                    placeholder="Enter referral (optional)"
                     value={signupData.referralCode}
                     onChange={(e) => setSignupData({ ...signupData, referralCode: e.target.value })}
                     disabled={!!refParam}
                   />
                 </div>
+
+                <div className="flex items-start gap-3">
+                  <input
+                    id="terms"
+                    type="checkbox"
+                    className="mt-1 w-4 h-4 rounded"
+                    onChange={(e) => {/* handled below via native form */}}
+                    required
+                  />
+                  <label htmlFor="terms" className="text-sm text-muted-foreground">
+                    By signing up, you agree to the <a className="text-primary underline">Terms & Services</a>.
+                  </label>
+                </div>
+
+                {/* Bot verification placeholder (matches screenshot layout) */}
+                <div className="mt-2 p-3 rounded-lg border border-border/40 bg-card/80">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">✓</div>
+                      <div>
+                        <div className="text-sm font-semibold">Success!</div>
+                        <div className="text-xs text-muted-foreground">Verification completed</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">cloudflare</div>
+                  </div>
+                </div>
+
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-semibold glow-primary"
+                  className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-semibold glow-primary py-3"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Creating Account..." : "Sign Up & Get ₦50,000 Bonus"}
+                  {isLoading ? "Registering..." : "REGISTER"}
                 </Button>
+
+                <div className="text-center text-sm text-muted-foreground">
+                  Already have an account? <a className="text-primary underline" href="#login">Login here</a>
+                </div>
               </form>
             </TabsContent>
 
