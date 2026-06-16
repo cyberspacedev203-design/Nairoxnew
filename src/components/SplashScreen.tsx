@@ -76,8 +76,8 @@ const SplashScreen = ({ onDone }: Props) => {
       if (!nav && (performance as any)?.navigation?.type === 1) isReload = true;
     } catch (e) {}
 
-    // desired totals: normal load 4000ms, reload shorter (~1800ms)
-    const NORMAL_TOTAL = 4000;
+    // desired totals: normal load 5000ms, reload shorter (~1800ms)
+    const NORMAL_TOTAL = 5000;
     const RELOAD_TOTAL = 1800;
     const total = isReload ? RELOAD_TOTAL : NORMAL_TOTAL;
 
