@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 
-const SplashScreen = () => {
-  const navigate = useNavigate();
+type Props = { onDone?: () => void };
+
+const SplashScreen = ({ onDone }: Props) => {
   const name = "Nairox9ja";
   const boxWrapRef = useRef<HTMLDivElement | null>(null);
   const textRowRef = useRef<HTMLDivElement | null>(null);
@@ -145,10 +145,8 @@ const SplashScreen = () => {
       if (elapsed < TOTAL + 200) {
         animFrame = requestAnimationFrame(tick);
       } else {
-        // navigate when done
-        const user = localStorage.getItem("user");
-        if (user) navigate("/dashboard");
-        else navigate("/auth");
+        // signal done to parent if provided
+        if (onDone) onDone();
       }
     }
 
