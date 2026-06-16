@@ -50,12 +50,15 @@ const SplashScreen = ({ onDone }: Props) => {
     }
 
     // smaller visuals
-    boxWrap.style.transform = "translateY(-200px) rotate(0deg)";
+    const startY = -(window.innerHeight * 1.2 + 100); // offscreen above
+    boxWrap.style.transform = `translateY(${startY}px) rotate(0deg)`;
     textRow.style.width = "0px";
     group.style.gap = "0px";
+    const startX = Math.max(220, Math.round(window.innerWidth * 0.5));
     letters.forEach((l) => {
       l.style.opacity = "0";
-      l.style.transform = "translateX(28px)";
+      // start letters far to the right (offscreen)
+      l.style.transform = `translateX(${startX}px)`;
       (l.style as any).fontSize = "28px";
       (l.style as any).fontWeight = "900";
       (l.style as any).lineHeight = "1";
@@ -73,22 +76,18 @@ const SplashScreen = ({ onDone }: Props) => {
       if (!nav && (performance as any)?.navigation?.type === 1) isReload = true;
     } catch (e) {}
 
-    // base durations (from your snippet)
-    let FALL_DUR = 900;
-    let SETTLE_DUR = 300;
-    let EXPAND_DUR = 400;
-    let LETTER_STAGGER = 80;
-    let LETTER_DUR = 250;
+    // desired totals: normal load 4000ms, reload shorter (~1800ms)
+    const NORMAL_TOTAL = 4000;
+    const RELOAD_TOTAL = 1800;
+    const total = isReload ? RELOAD_TOTAL : NORMAL_TOTAL;
 
-    if (isReload) {
-      // shorten to fit ~1.8s total
-      const factor = 0.6;
-      FALL_DUR = Math.round(FALL_DUR * factor);
-      SETTLE_DUR = Math.round(SETTLE_DUR * factor);
-      EXPAND_DUR = Math.round(EXPAND_DUR * factor);
-      LETTER_STAGGER = Math.max(40, Math.round(LETTER_STAGGER * factor));
-      LETTER_DUR = Math.max(120, Math.round(LETTER_DUR * factor));
-    }
+    // distribute timings proportionally
+    let FALL_DUR = Math.round(total * 0.25); // box drop
+    let SETTLE_DUR = Math.round(total * 0.07); // small settle/bounce
+    let EXPAND_DUR = Math.round(total * 0.18); // expand text container
+    let LETTER_DUR = Math.max(120, Math.round(total * 0.08));
+    let LETTER_STAGGER = Math.max(40, Math.round((total * 0.22) / name.length));
+
 
     const SLOW_SPIN_START = FALL_DUR + SETTLE_DUR + 100;
     const TOTAL = SLOW_SPIN_START + name.length * LETTER_STAGGER + LETTER_DUR + 200;
@@ -104,7 +103,7 @@ const SplashScreen = ({ onDone }: Props) => {
 
       if (elapsed < FALL_DUR) {
         const t = easeOutBack(Math.min(elapsed / FALL_DUR, 1));
-        const y = lerp(-200, 0, t);
+        const y = lerp(startY, 0, t);
         const rot = lerp(0, -360, elapsed / FALL_DUR);
         boxWrap.style.transform = `translateY(${y}px) rotate(${rot}deg)`;
         baseRotation = rot;
@@ -138,7 +137,7 @@ const SplashScreen = ({ onDone }: Props) => {
           const t = Math.min((elapsed - letterStart) / LETTER_DUR, 1);
           const et = easeOut(t);
           letter.style.opacity = String(et);
-          letter.style.transform = `translateX(${lerp(28, 0, et)}px)`;
+          letter.style.transform = `translateX(${lerp(startX, 0, et)}px)`;
         }
       });
 
