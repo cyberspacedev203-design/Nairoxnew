@@ -155,7 +155,7 @@ const SplashScreen = ({ onDone }: Props) => {
     return () => {
       if (animFrame) cancelAnimationFrame(animFrame);
     };
-  }, [navigate]);
+  }, [onDone]);
 
   return (
     <div className="min-h-screen liquid-bg flex items-center justify-center p-4" style={{ background: '#000' }}>
