@@ -72,6 +72,63 @@
     pointer-events: none;
   }
 
+  /* Splash animations: falling box, staggered letters, shifting box */
+  @keyframes boxDrop {
+    0% { transform: translateY(-300%) rotate(-40deg) scale(0.9); opacity: 0; }
+    60% { transform: translateY(12%) rotate(8deg) scale(1.03); opacity: 1; }
+    80% { transform: translateY(-6%) rotate(-6deg) scale(0.99); }
+    100% { transform: translateY(0) rotate(0deg) scale(1); }
+  }
+
+  @keyframes boxShiftLeft {
+    0% { transform: translateX(0) rotate(0deg); }
+    100% { transform: translateX(-6.5rem) rotate(18deg); }
+  }
+
+  @keyframes boxTurnSlow {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes letterIn {
+    0% { transform: translateX(120%); opacity: 0; }
+    60% { transform: translateX(-8%); opacity: 1; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  .splash-box {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, hsl(165 100% 40%), hsl(165 100% 60%));
+    display: grid;
+    place-items: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 40px hsl(165 100% 60% / 0.25);
+    transform-origin: center;
+    will-change: transform, left, top;
+  }
+
+  .splash-box.drop { animation: boxDrop 1.2s cubic-bezier(.2,.9,.2,1) forwards; }
+  .splash-box.shift { animation: boxShiftLeft 0.8s cubic-bezier(.2,.9,.2,1) forwards; animation-delay: 0.9s; }
+  .splash-box.turn-slow { animation: boxTurnSlow 10s linear infinite; animation-delay: 1s; }
+
+  .splash-letters { display:flex; gap:0.12rem; align-items:center; overflow:hidden; }
+  .splash-letters .letter {
+    display:inline-block;
+    font-weight:800;
+    font-size:4.25rem;
+    line-height:1;
+    color: transparent;
+    background: linear-gradient(90deg, hsl(165 100% 60%), hsl(38 100% 55%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    opacity: 0;
+    transform-origin: left center;
+    will-change: transform, opacity;
+  }
+  .splash-letters .letter.animate { animation: letterIn 0.7s cubic-bezier(.2,.9,.2,1) forwards; }
+
+
   @keyframes liquid-float {
     0%, 100% { transform: translate(-10%, -10%) rotate(0deg); }
     25%      { transform: translate(-5%, -15%) rotate(90deg); }
