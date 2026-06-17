@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,8 @@ const Auth = () => {
   const [formRenderTime, setFormRenderTime] = useState<number>(Date.now());
   const [showTerms, setShowTerms] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsScrolledEnd, setTermsScrolledEnd] = useState(false);
+  const termsContentRef = useRef<HTMLDivElement | null>(null);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -515,10 +517,10 @@ const Auth = () => {
           onClick={() => setShowTerms(false)}
         >
           <div
-            className="w-[90vw] max-w-lg h-[60vh] bg-card/95 backdrop-blur rounded-xl shadow-2xl p-5 border border-border/50 overflow-auto"
+            className="w-[90vw] max-w-lg h-[60vh] bg-card/95 backdrop-blur rounded-xl shadow-2xl p-4 border border-border/50 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold">Terms of Service</h3>
               <button
                 onClick={() => setShowTerms(false)}
@@ -529,7 +531,18 @@ const Auth = () => {
               </button>
             </div>
 
-            <div className="text-xs text-muted-foreground space-y-3 mb-4">
+            <div
+              ref={termsContentRef}
+              onScroll={() => {
+                const el = termsContentRef.current;
+                if (!el) return;
+                const { scrollTop, scrollHeight, clientHeight } = el;
+                if (scrollTop + clientHeight >= scrollHeight - 8) {
+                  setTermsScrolledEnd(true);
+                }
+              }}
+              className="text-xs text-muted-foreground space-y-3 mb-2 overflow-auto flex-1 pr-2"
+            >
               <p><strong>1. Acceptance of Terms</strong><br/>By creating an account or using Nairox9ja, you agree to comply with these Terms of Service and all applicable policies of the platform.</p>
 
               <p><strong>2. Communication Consent</strong><br/>By signing up on Nairox9ja, you agree to receive important notifications, updates, promotional messages, and account-related information through Email, SMS/Text Messages, Telegram or other official communication channels. You may unsubscribe from promotional messages at any time, but important account and security notifications may still be sent when necessary.</p>
@@ -547,19 +560,27 @@ const Auth = () => {
               <p><strong>8. Changes to Terms</strong><br/>Nairox9ja reserves the right to update or modify these Terms of Service at any time. Users will be notified of significant changes through official channels or notifications on the platform.</p>
             </div>
 
-            <div className="flex gap-3 justify-end mt-auto">
-              <button
-                onClick={() => { setTermsAccepted(false); setShowTerms(false); }}
-                className="px-4 py-2 rounded-md border border-border/40 text-sm text-muted-foreground bg-transparent"
-              >
-                Decline
-              </button>
-              <button
-                onClick={() => { setTermsAccepted(true); setShowTerms(false); }}
-                className="px-4 py-2 rounded-md bg-gradient-to-r from-primary to-secondary text-white text-sm"
-              >
-                Agree
-              </button>
+            <div className="flex gap-3 justify-end mt-3">
+              {!termsScrolledEnd ? (
+                <div className="text-xs text-muted-foreground">Scroll to the end to accept</div>
+              ) : null}
+
+              {termsScrolledEnd && (
+                <>
+                  <button
+                    onClick={() => { setTermsAccepted(false); setShowTerms(false); setTermsScrolledEnd(false); }}
+                    className="px-4 py-2 rounded-md border border-border/40 text-sm text-muted-foreground bg-transparent"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => { setTermsAccepted(true); setShowTerms(false); setTermsScrolledEnd(false); }}
+                    className="px-4 py-2 rounded-md bg-gradient-to-r from-primary to-secondary text-white text-sm"
+                  >
+                    Agree
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
