@@ -62,13 +62,28 @@ const Auth = () => {
       const renderHcaptcha = () => {
         try {
           const container = document.getElementById("hc-widget");
-            if (container && (window as any).hcaptcha) {
-            (window as any).hcaptcha.render(container, {
-              sitekey: HCAPTCHA_SITE_KEY,
-              callback: (token: string) => {
-                (window as any).__hcaptcha_token = token;
-              },
-            });
+          const containerLogin = document.getElementById("hc-widget-login");
+          if ((container || containerLogin) && (window as any).hcaptcha) {
+            if (container) {
+              try {
+                (window as any).hcaptcha.render(container, {
+                  sitekey: HCAPTCHA_SITE_KEY,
+                  callback: (token: string) => {
+                    (window as any).__hcaptcha_token = token;
+                  },
+                });
+              } catch (e) {}
+            }
+            if (containerLogin) {
+              try {
+                (window as any).hcaptcha.render(containerLogin, {
+                  sitekey: HCAPTCHA_SITE_KEY,
+                  callback: (token: string) => {
+                    (window as any).__hcaptcha_token = token;
+                  },
+                });
+              } catch (e) {}
+            }
           }
         } catch (err) {
           // eslint-disable-next-line no-console
@@ -94,13 +109,28 @@ const Auth = () => {
       const renderTurnstile = () => {
         try {
           const container = document.getElementById("cf-turnstile");
-            if (container && (window as any).turnstile) {
-            (window as any).turnstile.render(container, {
-              sitekey: TURNSTILE_SITE_KEY,
-              callback: (token: string) => {
-                (window as any).__turnstile_token = token;
-              },
-            });
+          const containerLogin = document.getElementById("cf-turnstile-login");
+          if ((container || containerLogin) && (window as any).turnstile) {
+            if (container) {
+              try {
+                (window as any).turnstile.render(container, {
+                  sitekey: TURNSTILE_SITE_KEY,
+                  callback: (token: string) => {
+                    (window as any).__turnstile_token = token;
+                  },
+                });
+              } catch (e) {}
+            }
+            if (containerLogin) {
+              try {
+                (window as any).turnstile.render(containerLogin, {
+                  sitekey: TURNSTILE_SITE_KEY,
+                  callback: (token: string) => {
+                    (window as any).__turnstile_token = token;
+                  },
+                });
+              } catch (e) {}
+            }
           }
         } catch (err) {
           // eslint-disable-next-line no-console
@@ -289,6 +319,27 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      // Verify captcha token if provider configured
+      if (HCAPTCHA_SITE_KEY) {
+        const hToken = (window as any).__hcaptcha_token || "";
+        if (!hToken) throw new Error("Please complete the captcha.");
+        const vt = await fetch("/api/verify-hcaptcha", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: hToken }),
+        }).then((r) => r.json());
+        if (!vt.success) throw new Error("Captcha verification failed. Try again.");
+      } else if (TURNSTILE_SITE_KEY) {
+        const tToken = (window as any).__turnstile_token || "";
+        if (!tToken) throw new Error("Please complete the captcha.");
+        const vt = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: tToken }),
+        }).then((r) => r.json());
+        if (!vt.success) throw new Error("Captcha verification failed. Try again.");
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginData.email.trim(),
         password: loginData.password,
@@ -414,22 +465,15 @@ const Auth = () => {
                   </label>
                 </div>
 
-                {/* Captcha widget container (hCaptcha preferred, then Turnstile) */}
-                <div className="mt-2 p-3 rounded-lg border border-border/40 bg-card/80">
+                {/* Captcha widget container (unstyled so provider renders normally) */}
+                <div className="mt-2">
                   {HCAPTCHA_SITE_KEY ? (
-                    <div className="w-full flex items-center justify-center">
-                      <div id="hc-widget" />
-                    </div>
+                    <div id="hc-widget" />
                   ) : TURNSTILE_SITE_KEY ? (
                     <div id="cf-turnstile" />
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">Captcha not configured</div>
-                      <div className="text-xs text-muted-foreground">provider</div>
-                    </div>
+                    <div className="text-sm text-muted-foreground">Captcha not configured</div>
                   )}
-
-                  {/* Captcha widget only; server verification happens on submit */}
                 </div>
 
                 {/* Honeypot hidden field (bots will fill this) */}
@@ -480,6 +524,14 @@ const Auth = () => {
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     required
                   />
+                </div>
+                {/* Login captcha (unstyled) */}
+                <div className="mt-2">
+                  {HCAPTCHA_SITE_KEY ? (
+                    <div id="hc-widget-login" />
+                  ) : TURNSTILE_SITE_KEY ? (
+                    <div id="cf-turnstile-login" />
+                  ) : null}
                 </div>
                 <Button
                   type="submit"
