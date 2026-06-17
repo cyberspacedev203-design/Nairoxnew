@@ -39,6 +39,8 @@ const Auth = () => {
   });
 
   const [formRenderTime, setFormRenderTime] = useState<number>(Date.now());
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -393,11 +395,20 @@ const Auth = () => {
                     id="terms"
                     type="checkbox"
                     className="mt-1 w-4 h-4 rounded"
-                    onChange={(e) => {/* handled below via native form */}}
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
                     required
                   />
                   <label htmlFor="terms" className="text-sm text-muted-foreground">
-                    By signing up, you agree to the <a className="text-primary underline">Terms & Services</a>.
+                    By signing up, you agree to the{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(true)}
+                      className="text-primary underline"
+                    >
+                      Terms & Services
+                    </button>
+                    .
                   </label>
                 </div>
 
@@ -496,6 +507,63 @@ const Auth = () => {
           <span className="text-sm">Support</span>
         </button>
       </a>
+
+      {/* Terms of Service Modal */}
+      {showTerms && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
+          onClick={() => setShowTerms(false)}
+        >
+          <div
+            className="w-[90vw] max-w-lg h-[60vh] bg-card/95 backdrop-blur rounded-xl shadow-2xl p-5 border border-border/50 overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">Terms of Service</h3>
+              <button
+                onClick={() => setShowTerms(false)}
+                className="text-muted-foreground hover:text-primary text-sm"
+                aria-label="Close terms"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-3 mb-4">
+              <p><strong>1. Acceptance of Terms</strong><br/>By creating an account or using Nairox9ja, you agree to comply with these Terms of Service and all applicable policies of the platform.</p>
+
+              <p><strong>2. Communication Consent</strong><br/>By signing up on Nairox9ja, you agree to receive important notifications, updates, promotional messages, and account-related information through Email, SMS/Text Messages, Telegram or other official communication channels. You may unsubscribe from promotional messages at any time, but important account and security notifications may still be sent when necessary.</p>
+
+              <p><strong>3. Account Responsibility</strong><br/>Users are responsible for keeping their account information accurate and secure. Sharing account credentials with others is at the user’s own risk. Nairox9ja will not be responsible for losses resulting from unauthorized access caused by negligence or sharing of login details.</p>
+
+              <p><strong>4. Platform Integrity</strong><br/>Any attempt to create multiple accounts, use fake information, abuse referral systems, manipulate rewards or tasks, engage in fraudulent activities may result in account restriction, suspension, or permanent termination.</p>
+
+              <p><strong>5. Rewards and Earnings</strong><br/>Rewards, bonuses, and earnings on Nairox9ja are subject to the platform’s rules and requirements. The platform reserves the right to modify reward structures, promotional offers, or earning methods when necessary to improve user experience and platform sustainability.</p>
+
+              <p><strong>6. Privacy and Data Protection</strong><br/>Your personal information is handled with care and used only for Account management, Payment processing, Security verification, Communication and support, Improving our services. Nairox9ja does not sell users’ personal information to third parties.</p>
+
+              <p><strong>7. Trust and Transparency</strong><br/>By registering on this platform, you acknowledge that you understand the platform rules and agree to use the services responsibly and honestly.</p>
+
+              <p><strong>8. Changes to Terms</strong><br/>Nairox9ja reserves the right to update or modify these Terms of Service at any time. Users will be notified of significant changes through official channels or notifications on the platform.</p>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-auto">
+              <button
+                onClick={() => { setTermsAccepted(false); setShowTerms(false); }}
+                className="px-4 py-2 rounded-md border border-border/40 text-sm text-muted-foreground bg-transparent"
+              >
+                Decline
+              </button>
+              <button
+                onClick={() => { setTermsAccepted(true); setShowTerms(false); }}
+                className="px-4 py-2 rounded-md bg-gradient-to-r from-primary to-secondary text-white text-sm"
+              >
+                Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
