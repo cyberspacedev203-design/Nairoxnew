@@ -9,6 +9,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Send } from "lucide-react";
 
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || "";
+
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -32,7 +35,12 @@ const Auth = () => {
     password: "",
     confirmPassword: "",
     referralCode: initialRefCode,
+    hp: "",
   });
+
+  const [formRenderTime, setFormRenderTime] = useState<number>(Date.now());
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -41,6 +49,108 @@ const Auth = () => {
 
   // Redirect if already logged in
   useEffect(() => {
+    setFormRenderTime(Date.now());
+
+    // prefer hCaptcha if configured, otherwise fallback to Turnstile
+    if (HCAPTCHA_SITE_KEY) {
+      (window as any).onHcaptchaSuccess = (token: string) => {
+        (window as any).__hcaptcha_token = token;
+      };
+
+      const renderHcaptcha = () => {
+        try {
+          const container = document.getElementById("hc-widget");
+            if (container && (window as any).hcaptcha) {
+            (window as any).hcaptcha.render(container, {
+              sitekey: HCAPTCHA_SITE_KEY,
+              callback: (token: string) => {
+                (window as any).__hcaptcha_token = token;
+                // verify with server immediately so UI can show authoritative success
+                (async () => {
+                  try {
+                    setCaptchaLoading(true);
+                    const r = await fetch('/api/verify-hcaptcha', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token }),
+                    });
+                    const j = await r.json();
+                    setCaptchaVerified(!!j.success);
+                  } catch (err) {
+                    setCaptchaVerified(false);
+                  } finally {
+                    setCaptchaLoading(false);
+                  }
+                })();
+              },
+            });
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("hCaptcha render failed:", err);
+        }
+      };
+
+      if (!(window as any).hcaptcha) {
+        const s = document.createElement("script");
+        s.src = "https://hcaptcha.com/1/api.js";
+        s.async = true;
+        s.defer = true;
+        s.onload = () => renderHcaptcha();
+        document.head.appendChild(s);
+      } else {
+        renderHcaptcha();
+      }
+    } else if (TURNSTILE_SITE_KEY) {
+      (window as any).onTurnstileSuccess = (token: string) => {
+        (window as any).__turnstile_token = token;
+      };
+
+      const renderTurnstile = () => {
+        try {
+          const container = document.getElementById("cf-turnstile");
+            if (container && (window as any).turnstile) {
+            (window as any).turnstile.render(container, {
+              sitekey: TURNSTILE_SITE_KEY,
+              callback: (token: string) => {
+                (window as any).__turnstile_token = token;
+                (async () => {
+                  try {
+                    setCaptchaLoading(true);
+                    const r = await fetch('/api/verify-turnstile', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token }),
+                    });
+                    const j = await r.json();
+                    setCaptchaVerified(!!j.success);
+                  } catch (err) {
+                    setCaptchaVerified(false);
+                  } finally {
+                    setCaptchaLoading(false);
+                  }
+                })();
+              },
+            });
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("Turnstile render failed:", err);
+        }
+      };
+
+      if (!(window as any).turnstile) {
+        const s = document.createElement("script");
+        s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+        s.async = true;
+        s.defer = true;
+        s.onload = () => renderTurnstile();
+        document.head.appendChild(s);
+      } else {
+        renderTurnstile();
+      }
+    }
+
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) navigate("/dashboard", { replace: true });
@@ -66,6 +176,44 @@ const Auth = () => {
       if (signupData.password !== signupData.confirmPassword) {
         throw new Error("Passwords do not match");
       }
+
+      // Honeypot check (bots often fill hidden fields)
+      if (signupData.hp && signupData.hp.trim() !== "") {
+        throw new Error("Bot detected (honeypot)");
+      }
+
+      // Basic timing check (prevent immediate automated submits)
+      const elapsed = Date.now() - formRenderTime;
+      if (elapsed < 3000) {
+        throw new Error("Please take a moment before submitting the form.");
+      }
+
+      // Verification token handling: prefer hCaptcha, fallback to Turnstile
+      if (HCAPTCHA_SITE_KEY) {
+        const hToken = (window as any).__hcaptcha_token || "";
+        if (!hToken) throw new Error("Please complete the captcha.");
+
+        const vt = await fetch("/api/verify-hcaptcha", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: hToken }),
+        }).then((r) => r.json());
+        if (!vt.success) throw new Error("Captcha verification failed. Try again.");
+      } else if (TURNSTILE_SITE_KEY) {
+        const turnstileToken = (window as any).__turnstile_token || "";
+        if (!turnstileToken) throw new Error("Please complete the bot verification.");
+
+        const vt = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: turnstileToken }),
+        }).then((r) => r.json());
+        if (!vt.success) throw new Error("Bot verification failed. Try again.");
+      } else {
+        // No captcha provider configured: rely on honeypot/timing as a last resort
+        console.warn("No captcha provider configured; using honeypot/timing fallback");
+      }
+
       const finalRefCode = signupData.referralCode || localStorage.getItem("referralCode") || "";
 
       const { data, error } = await supabase.auth.signUp({
@@ -288,19 +436,45 @@ const Auth = () => {
                   </label>
                 </div>
 
-                {/* Bot verification placeholder (matches screenshot layout) */}
+                {/* Captcha widget container (hCaptcha preferred, then Turnstile) */}
                 <div className="mt-2 p-3 rounded-lg border border-border/40 bg-card/80">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">✓</div>
-                      <div>
-                        <div className="text-sm font-semibold">Success!</div>
-                        <div className="text-xs text-muted-foreground">Verification completed</div>
-                      </div>
+                  {HCAPTCHA_SITE_KEY ? (
+                    <div className="w-full flex items-center justify-center">
+                      <div id="hc-widget" />
                     </div>
-                    <div className="text-xs text-muted-foreground">cloudflare</div>
-                  </div>
+                  ) : TURNSTILE_SITE_KEY ? (
+                    <div id="cf-turnstile" />
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">Captcha not configured</div>
+                      <div className="text-xs text-muted-foreground">provider</div>
+                    </div>
+                  )}
+
+                  {/* Show authoritative success indicator when server confirms token */}
+                  {captchaLoading ? (
+                    <div className="mt-3 p-2 rounded-md bg-yellow-600 text-white flex items-center gap-3">
+                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">…</div>
+                      <div className="text-sm font-semibold">Verifying…</div>
+                    </div>
+                  ) : captchaVerified ? (
+                    <div className="mt-3 p-2 rounded-md bg-green-600 text-white flex items-center gap-3">
+                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">✓</div>
+                      <div className="text-sm font-semibold">Success! Verification completed</div>
+                    </div>
+                  ) : null}
                 </div>
+
+                {/* Honeypot hidden field (bots will fill this) */}
+                <input
+                  type="text"
+                  name="hp"
+                  value={signupData.hp}
+                  onChange={(e) => setSignupData({ ...signupData, hp: e.target.value })}
+                  autoComplete="off"
+                  tabIndex={-1}
+                  className="hidden"
+                />
 
                 <Button
                   type="submit"
