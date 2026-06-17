@@ -39,8 +39,6 @@ const Auth = () => {
   });
 
   const [formRenderTime, setFormRenderTime] = useState<number>(Date.now());
-  const [captchaVerified, setCaptchaVerified] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -65,23 +63,6 @@ const Auth = () => {
               sitekey: HCAPTCHA_SITE_KEY,
               callback: (token: string) => {
                 (window as any).__hcaptcha_token = token;
-                // verify with server immediately so UI can show authoritative success
-                (async () => {
-                  try {
-                    setCaptchaLoading(true);
-                    const r = await fetch('/api/verify-hcaptcha', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ token }),
-                    });
-                    const j = await r.json();
-                    setCaptchaVerified(!!j.success);
-                  } catch (err) {
-                    setCaptchaVerified(false);
-                  } finally {
-                    setCaptchaLoading(false);
-                  }
-                })();
               },
             });
           }
@@ -114,22 +95,6 @@ const Auth = () => {
               sitekey: TURNSTILE_SITE_KEY,
               callback: (token: string) => {
                 (window as any).__turnstile_token = token;
-                (async () => {
-                  try {
-                    setCaptchaLoading(true);
-                    const r = await fetch('/api/verify-turnstile', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ token }),
-                    });
-                    const j = await r.json();
-                    setCaptchaVerified(!!j.success);
-                  } catch (err) {
-                    setCaptchaVerified(false);
-                  } finally {
-                    setCaptchaLoading(false);
-                  }
-                })();
               },
             });
           }
@@ -451,18 +416,7 @@ const Auth = () => {
                     </div>
                   )}
 
-                  {/* Show authoritative success indicator when server confirms token */}
-                  {captchaLoading ? (
-                    <div className="mt-3 p-2 rounded-md bg-yellow-600 text-white flex items-center gap-3">
-                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">…</div>
-                      <div className="text-sm font-semibold">Verifying…</div>
-                    </div>
-                  ) : captchaVerified ? (
-                    <div className="mt-3 p-2 rounded-md bg-green-600 text-white flex items-center gap-3">
-                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">✓</div>
-                      <div className="text-sm font-semibold">Success! Verification completed</div>
-                    </div>
-                  ) : null}
+                  {/* Captcha widget only; server verification happens on submit */}
                 </div>
 
                 {/* Honeypot hidden field (bots will fill this) */}
