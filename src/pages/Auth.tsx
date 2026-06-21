@@ -97,7 +97,8 @@ const Auth = () => {
 
       if (!(window as any).hcaptcha) {
         const s = document.createElement("script");
-        s.src = "https://hcaptcha.com/1/api.js";
+        // Use explicit render to avoid auto-render race conditions
+        s.src = "https://hcaptcha.com/1/api.js?render=explicit";
         s.async = true;
         s.defer = true;
         s.onload = () => renderHcaptcha();
@@ -144,7 +145,8 @@ const Auth = () => {
 
       if (!(window as any).turnstile) {
         const s = document.createElement("script");
-        s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+        // Request explicit render to reduce race conditions with the global API
+        s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
         s.async = true;
         s.defer = true;
         s.onload = () => renderTurnstile();

