@@ -19,8 +19,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // If user_id provided, store token in profiles; otherwise store in email_verifications table keyed by email
+    const doFetch = async (url: string, opts: any) => {
+      const r = await fetch(url, opts);
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '');
+        console.error('Supabase request failed', url, r.status, txt);
+        throw new Error(`Upstream request failed: ${r.status}`);
+      }
+      return r.json().catch(() => null);
+    };
+
     if (user_id) {
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}`, {
+      await doFetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -31,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       // Queue email notification referencing user
-      await fetch(`${SUPABASE_URL}/rest/v1/email_notifications`, {
+      await doFetch(`${SUPABASE_URL}/rest/v1/email_notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     } else {
       // store in email_verifications table
-      await fetch(`${SUPABASE_URL}/rest/v1/email_verifications`, {
+      await doFetch(`${SUPABASE_URL}/rest/v1/email_verifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       // Queue email notification with no user_id
-      await fetch(`${SUPABASE_URL}/rest/v1/email_notifications`, {
+      await doFetch(`${SUPABASE_URL}/rest/v1/email_notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
