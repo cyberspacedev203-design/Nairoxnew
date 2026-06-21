@@ -49,6 +49,10 @@ const Auth = () => {
     password: "",
   });
 
+  const [otp, setOtp] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
   // Redirect if already logged in
   useEffect(() => {
     setFormRenderTime(Date.now());
@@ -211,6 +215,15 @@ const Auth = () => {
       } else {
         // No captcha provider configured: rely on honeypot/timing as a last resort
         console.warn("No captcha provider configured; using honeypot/timing fallback");
+      }
+
+      // If user requested OTP, verify it before creating account
+      if (otpRequested) {
+        if (!otp || otp.trim().length === 0) throw new Error('Please enter the OTP sent to your email');
+        const vr = await fetch('/api/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: signupData.email, code: otp }) }).then(r => r.json());
+        if (!vr || !vr.success) {
+          throw new Error(vr?.error || 'OTP verification failed');
+        }
       }
 
       const finalRefCode = signupData.referralCode || localStorage.getItem("referralCode") || "";
@@ -398,14 +411,43 @@ const Auth = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter Email Address"
-                    value={signupData.email}
-                    onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter Email Address"
+                      value={signupData.email}
+                      onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      disabled={otpLoading || !signupData.email}
+                      onClick={async () => {
+                        setOtpLoading(true);
+                        try {
+                          await fetch('/api/send-email-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: signupData.email }) });
+                          setOtpRequested(true);
+                          toast.success('OTP sent to your email.');
+                        } catch (e) {
+                          console.error(e);
+                          toast.error('Failed to request OTP');
+                        } finally {
+                          setOtpLoading(false);
+                        }
+                      }}
+                      className="px-3 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+                    >
+                      {otpLoading ? 'Sending...' : 'Get OTP'}
+                    </button>
+                  </div>
+
+                  {otpRequested && (
+                    <div className="mt-2">
+                      <Label htmlFor="otp">OTP</Label>
+                      <Input id="otp" placeholder="Enter code from email" value={otp} onChange={(e) => setOtp(e.target.value)} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
