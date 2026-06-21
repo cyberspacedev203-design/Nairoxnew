@@ -11,6 +11,7 @@ import { FloatingActionButton } from "@/components/FloatingActionButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import ImportantPaymentNotice from "@/components/ImportantPaymentNotice";
+import CountdownTimer from "@/components/CountdownTimer";
 
 const Withdraw = () => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Withdraw = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPaymentNotice, setShowPaymentNotice] = useState(false);
   const [pendingWithdrawalId, setPendingWithdrawalId] = useState<string | null>(null);
+  const [activeWithdrawal, setActiveWithdrawal] = useState<any | null>(null);
   const [withdrawData, setWithdrawData] = useState({
     amount: "",
     accountName: "",
@@ -42,6 +44,25 @@ const Withdraw = () => {
   const tiers = {
     light: { minAmount: 150000, requiredReferrals: 5, name: "Light (Quick)" },
     standard: { minAmount: 150000, requiredReferrals: 0, name: "Standard (Premium)" }
+  };
+
+  const handleStartCountdown = async (withdrawalId?: string) => {
+    const id = withdrawalId || pendingWithdrawalId;
+    if (!id) return toast.error('No withdrawal selected');
+    setSubmitting(true);
+    try {
+      // call start-withdrawal endpoint
+      const r = await fetch('/api/start-withdrawal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdrawal_id: id }) });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.error || 'Failed to start countdown');
+      toast.success('24-hour countdown started');
+      // reload profile and active withdrawal
+      await loadProfile();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start countdown');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -96,6 +117,16 @@ const Withdraw = () => {
 
       if (error) throw error;
       setProfile(data);
+      // load active withdrawal (processing_24h or awaiting_admin_approval)
+      const { data: wdata } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .in('status', ['processing_24h','awaiting_admin_approval'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (wdata) setActiveWithdrawal(wdata);
     } catch (error: any) {
       toast.error("Failed to load profile");
     } finally {
@@ -151,9 +182,9 @@ const Withdraw = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
-      // Create withdrawal record (Light tier only at this point)
+      // create withdrawal draft
       const { data: withdrawal, error: withdrawalError } = await supabase
-        .from("withdrawals")
+        .from('withdrawals')
         .insert({
           user_id: session?.user.id,
           amount,
@@ -161,16 +192,16 @@ const Withdraw = () => {
           account_number: withdrawData.accountNumber,
           bank_name: withdrawData.bankName,
           type: withdrawalTier,
-          status: "awaiting_activation_payment",
+          status: 'pending_requirements',
         })
         .select()
         .maybeSingle();
 
       if (withdrawalError) throw withdrawalError;
 
-      // Store withdrawal ID and show payment notice
+      // Store withdrawal ID — user can start 24h countdown when ready
       setPendingWithdrawalId(withdrawal.id);
-      setShowPaymentNotice(true);
+      toast.success('Draft withdrawal created. Click "Request Withdrawal" to start 24-hour processing once ready.');
     } catch (error: any) {
       toast.error("Failed to submit withdrawal");
     } finally {
@@ -393,6 +424,13 @@ const Withdraw = () => {
             >
               {submitting ? "Submitting..." : "Submit Withdrawal"}
             </Button>
+
+            {/* If draft exists, allow starting countdown when requirements are met */}
+            {pendingWithdrawalId && !activeWithdrawal && (
+              <Button type="button" className="w-full mt-2" onClick={() => handleStartCountdown(pendingWithdrawalId)} disabled={submitting}>
+                {submitting ? 'Starting...' : 'Request Withdrawal (Start 24h Countdown)'}
+              </Button>
+            )}
           </form>
         </Card>
       </div>

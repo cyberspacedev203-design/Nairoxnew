@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, CheckCircle, Trophy, Zap, Star } from "lucide-react";
 import { FloatingActionButton } from "@/components/FloatingActionButton";
+import TaskProgressBar from "@/components/TaskProgressBar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -197,6 +198,8 @@ const Tasks = () => {
   );
   const [verifyingTasks, setVerifyingTasks] = useState<Set<number>>(new Set());
   const [totalClaims, setTotalClaims] = useState<number>(0);
+  const [taskProgress, setTaskProgress] = useState<number>(0);
+  const [taskCompleted, setTaskCompleted] = useState<boolean>(false);
 
   const tasks = [
     {
@@ -311,6 +314,25 @@ const Tasks = () => {
     });
     setPendingVerification(pending);
     setTotalClaims(getTotalClaims());
+
+    // fetch current user's task_progress
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('task_progress, task_completed')
+          .eq('id', user.id)
+          .single();
+        if (!error && profile) {
+          setTaskProgress(profile.task_progress || 0);
+          setTaskCompleted(!!profile.task_completed);
+        }
+      } catch (err) {
+        console.warn('Could not load task progress', err);
+      }
+    })();
   }, []);
 
   const handleClaim = async (task: any) => {
@@ -391,9 +413,13 @@ const Tasks = () => {
 
       const newBalance = profile.balance + amount;
 
+      // update balance and task progress atomically
+      const newTaskProgress = (profile.task_progress || 0) + amount;
+      const completedFlag = newTaskProgress >= 75000;
+
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ balance: newBalance })
+        .update({ balance: newBalance, task_progress: newTaskProgress, task_completed: completedFlag })
         .eq("id", user.id);
 
       if (updateError) {
@@ -409,8 +435,13 @@ const Tasks = () => {
           return newSet;
         });
 
+
         // ── Increment total claim counter ──────────────────────────────
         const newTotal = incrementTotalClaims();
+
+        // update local UI task progress
+        setTaskProgress((p) => p + amount);
+        if (newTaskProgress >= 75000) setTaskCompleted(true);
 
         // If they just hit 100, trigger upgrade
         if (newTotal === 100) {
@@ -463,6 +494,9 @@ const Tasks = () => {
             Complete tasks to earn bonus credits and boost your earnings
           </p>
         </Card>
+
+        {/* ── Task Earnings Progress (current cycle) ── */}
+        <TaskProgressBar progress={taskProgress} />
 
         {/* ── Claim Counter Visual ── */}
         <ClaimCounter totalClaims={totalClaims} />
