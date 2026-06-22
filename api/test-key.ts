@@ -1,50 +1,32 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+// Diagnostic endpoint – shows which env vars are present (true/false, never values)
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  try {
-    const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+  const envCheck = {
+    // Supabase
+    SUPABASE_URL:          !!process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
+    // Brevo email
+    BREVO_API_KEY:         !!process.env.BREVO_API_KEY,
+    EMAIL_SENDER:          process.env.EMAIL_SENDER || "(not set – will use default)",
+    // Paystack
+    PAYSTACK_SECRET_KEY:   !!process.env.PAYSTACK_SECRET_KEY,
+    // Captcha
+    HCAPTCHA_SECRET:       !!process.env.HCAPTCHA_SECRET,
+    TURNSTILE_SECRET:      !!process.env.TURNSTILE_SECRET,
+  };
 
-    if (!PAYSTACK_SECRET_KEY) {
-      return res.status(500).json({
-        error: "PAYSTACK_SECRET_KEY not configured",
-        env: {
-          PAYSTACK_SECRET_KEY: !!process.env.PAYSTACK_SECRET_KEY,
-          NEXT_PUBLIC_PAYSTACK_SECRET_KEY: !!process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY
-        }
-      });
-    }
+  const missing = Object.entries(envCheck)
+    .filter(([, v]) => v === false)
+    .map(([k]) => k);
 
-    // Test the key with balance endpoint
-    const testResponse = await fetch("https://api.paystack.co/balance", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${PAYSTACK_SECRET_KEY}`,
-        "Accept": "application/json",
-      },
-    });
-
-    const testData = await testResponse.json();
-
-    return res.status(200).json({
-      keyConfigured: true,
-      keyLength: PAYSTACK_SECRET_KEY.length,
-      keyStartsWith: PAYSTACK_SECRET_KEY.substring(0, 10) + '...',
-      balanceTest: {
-        status: testResponse.status,
-        ok: testResponse.ok,
-        data: testData
-      }
-    });
-
-  } catch (error) {
-    console.error("Test error:", error);
-    return res.status(500).json({ error: "Test failed", details: error.message });
-  }
+  return res.status(200).json({
+    ok: missing.length === 0,
+    missing,
+    env: envCheck,
+  });
 }
