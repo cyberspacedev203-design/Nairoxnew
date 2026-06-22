@@ -59,32 +59,27 @@ const Auth = () => {
 
     // prefer hCaptcha if configured, otherwise fallback to Turnstile
     if (HCAPTCHA_SITE_KEY) {
-      (window as any).onHcaptchaSuccess = (token: string) => {
-        (window as any).__hcaptcha_token = token;
-      };
-
       const renderHcaptcha = () => {
         try {
+          const captchaCallback = (token: string) => {
+            (window as any).__hcaptcha_token = token;
+          };
           const container = document.getElementById("hc-widget");
           const containerLogin = document.getElementById("hc-widget-login");
-          if ((container || containerLogin) && (window as any).hcaptcha) {
-            if (container) {
+          if ((window as any).hcaptcha) {
+            if (container && !container.hasChildNodes()) {
               try {
                 (window as any).hcaptcha.render(container, {
                   sitekey: HCAPTCHA_SITE_KEY,
-                  callback: (token: string) => {
-                    (window as any).__hcaptcha_token = token;
-                  },
+                  callback: captchaCallback,
                 });
               } catch (e) {}
             }
-            if (containerLogin) {
+            if (containerLogin && !containerLogin.hasChildNodes()) {
               try {
                 (window as any).hcaptcha.render(containerLogin, {
                   sitekey: HCAPTCHA_SITE_KEY,
-                  callback: (token: string) => {
-                    (window as any).__hcaptcha_token = token;
-                  },
+                  callback: captchaCallback,
                 });
               } catch (e) {}
             }
@@ -95,13 +90,16 @@ const Auth = () => {
         }
       };
 
+      // Define the global onload callback BEFORE the script tag is injected.
+      // hCaptcha's render=explicit + onload=onHcaptchaLoad pattern is the
+      // correct way to avoid the "should not render before js api is fully loaded" warning.
+      (window as any).onHcaptchaLoad = renderHcaptcha;
+
       if (!(window as any).hcaptcha) {
         const s = document.createElement("script");
-        // Use explicit render to avoid auto-render race conditions
-        s.src = "https://hcaptcha.com/1/api.js?render=explicit";
+        s.src = `https://js.hcaptcha.com/1/api.js?render=explicit&onload=onHcaptchaLoad`;
         s.async = true;
         s.defer = true;
-        s.onload = () => renderHcaptcha();
         document.head.appendChild(s);
       } else {
         renderHcaptcha();
@@ -428,12 +426,20 @@ const Auth = () => {
                       onClick={async () => {
                         setOtpLoading(true);
                         try {
-                          await fetch('/api/send-email-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: signupData.email }) });
+                          const otpRes = await fetch('/api/send-email-verification', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: signupData.email }),
+                          });
+                          const otpData = await otpRes.json().catch(() => ({}));
+                          if (!otpRes.ok || !otpData.success) {
+                            throw new Error(otpData.error || `Server error (${otpRes.status})`);
+                          }
                           setOtpRequested(true);
-                          toast.success('OTP sent to your email.');
-                        } catch (e) {
+                          toast.success('OTP sent to your email. Check your inbox.');
+                        } catch (e: any) {
                           console.error(e);
-                          toast.error('Failed to request OTP');
+                          toast.error(e?.message || 'Failed to send OTP. Please try again.');
                         } finally {
                           setOtpLoading(false);
                         }

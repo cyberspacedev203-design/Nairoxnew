@@ -11,57 +11,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Supabase env not configured' });
   }
 
+  const sbHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+    apikey: SUPABASE_SERVICE_ROLE,
+  };
+
   try {
     if (user_id) {
       // Fetch profile to compare token
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email_verification_token,email_token_expires_at,email_verified`, {
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` }
-      });
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email_verification_token,email_token_expires_at,email_verified`,
+        { headers: sbHeaders }
+      );
       const rows = await r.json();
       const profile = rows && rows[0];
       if (!profile) return res.status(404).json({ error: 'User not found' });
       if (profile.email_verified) return res.status(200).json({ success: true, message: 'Already verified' });
 
-      if (profile.email_verification_token !== code) return res.status(400).json({ success: false, error: 'Invalid code' });
+      if (profile.email_verification_token !== code) {
+        return res.status(400).json({ success: false, error: 'Invalid code' });
+      }
       const expires = profile.email_token_expires_at ? new Date(profile.email_token_expires_at) : null;
-      if (expires && expires < new Date()) return res.status(400).json({ success: false, error: 'Code expired' });
+      if (expires && expires < new Date()) {
+        return res.status(400).json({ success: false, error: 'Code expired. Please request a new OTP.' });
+      }
 
       // Mark email_verified and clear token
       await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify({ email_verified: true, email_verification_token: null, email_token_expires_at: null }),
+        headers: { ...sbHeaders, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          email_verified: true,
+          email_verification_token: null,
+          email_token_expires_at: null,
+        }),
       });
 
       return res.status(200).json({ success: true });
     }
 
-    // Else verify by email using email_verifications table
-    const vr = await fetch(`${SUPABASE_URL}/rest/v1/email_verifications?email=eq.${encodeURIComponent(email)}&code=eq.${code}&select=*,created_at,expires_at,verified`, {
-      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` }
-    });
+    // Verify by email using email_verifications table (pre-signup flow)
+    const vr = await fetch(
+      `${SUPABASE_URL}/rest/v1/email_verifications?email=eq.${encodeURIComponent(email)}&code=eq.${encodeURIComponent(code)}&select=id,expires_at,verified`,
+      { headers: sbHeaders }
+    );
     const vrows = await vr.json();
     const verification = vrows && vrows[0];
-    if (!verification) return res.status(400).json({ success: false, error: 'Invalid code or email' });
-    if (verification.verified) return res.status(200).json({ success: true, message: 'Already verified' });
-    const exp = verification.expires_at ? new Date(verification.expires_at) : null;
-    if (exp && exp < new Date()) return res.status(400).json({ success: false, error: 'Code expired' });
 
-    // mark verification row as verified
+    if (!verification) {
+      return res.status(400).json({ success: false, error: 'Invalid code. Please check and try again.' });
+    }
+    if (verification.verified) {
+      return res.status(200).json({ success: true, message: 'Already verified' });
+    }
+    const exp = verification.expires_at ? new Date(verification.expires_at) : null;
+    if (exp && exp < new Date()) {
+      return res.status(400).json({ success: false, error: 'Code expired. Please request a new OTP.' });
+    }
+
+    // Mark row as verified
     await fetch(`${SUPABASE_URL}/rest/v1/email_verifications?id=eq.${verification.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+      headers: sbHeaders,
       body: JSON.stringify({ verified: true }),
     });
 
-    // If a profile exists with that email, mark it verified too
+    // If a profile already exists with this email, mark it verified too
     await fetch(`${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+      headers: sbHeaders,
       body: JSON.stringify({ email_verified: true }),
     });
 
