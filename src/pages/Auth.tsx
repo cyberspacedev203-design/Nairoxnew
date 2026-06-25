@@ -367,6 +367,16 @@ const Auth = () => {
       if (error) throw error;
 
       toast.success("Welcome back!");
+      try {
+        const resp = await fetch('/api/send-welcome-immediate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: data.user.id, email: data.user.email }) });
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => '');
+          console.warn('Immediate welcome email failed:', resp.status, txt);
+        }
+      } catch (e) {
+        console.warn('Failed to call send-welcome-immediate', e);
+      }
+
       navigate("/dashboard", { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Invalid email or password");

@@ -99,6 +99,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: JSON.stringify({ sent: true, sent_at: new Date().toISOString() }),
         });
 
+        // If this was a welcome email, mark profile welcome_sent true to avoid duplicates
+        try {
+          if (n.type === 'welcome' && n.user_id) {
+            await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${n.user_id}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+              },
+              body: JSON.stringify({ welcome_sent: true }),
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to mark profile welcome_sent', e);
+        }
+
         results.push({ id: n.id, ok: true });
       } catch (err) {
         // log and continue

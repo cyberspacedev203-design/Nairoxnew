@@ -13,7 +13,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) return res.status(500).json({ error: 'Supabase env not configured' });
 
   try {
-    const payload: any = { email };
+    // Try to include full name in payload when available
+    let full_name = null;
+    if (user_id) {
+      try {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=full_name`, {
+          headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+        });
+        const jr = await r.json();
+        full_name = jr?.[0]?.full_name || null;
+      } catch (e) {
+        full_name = null;
+      }
+    }
+
+    const payload: any = { email, full_name };
     await fetch(`${SUPABASE_URL}/rest/v1/email_notifications`, {
       method: 'POST',
       headers: {
