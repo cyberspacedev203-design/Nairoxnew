@@ -69,16 +69,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         toEmail = rows?.[0]?.email || null;
       }
     } else {
-      // Store OTP in email_verifications table keyed by email
-      // Upsert: if a pending code already exists for this email, replace it
-      await doFetch(`${SUPABASE_URL}/rest/v1/email_verifications`, {
-        method: 'POST',
-        headers: {
-          ...sbHeaders,
-          Prefer: 'resolution=merge-duplicates,return=representation',
-        },
-        body: JSON.stringify({ email, code, expires_at: expiresAt, verified: false }),
-      });
+      // Store OTP in email_verifications table keyed by email.
+      // If a row already exists, update it; otherwise insert a new row.
+      const existingRows: any = await doFetch(
+        `${SUPABASE_URL}/rest/v1/email_verifications?email=eq.${encodeURIComponent(email)}&select=id`,
+        { method: 'GET', headers: sbHeaders }
+      );
+      const existingId = Array.isArray(existingRows) && existingRows[0]?.id;
+
+      if (existingId) {
+        await doFetch(`${SUPABASE_URL}/rest/v1/email_verifications?id=eq.${existingId}`, {
+          method: 'PATCH',
+          headers: {
+            ...sbHeaders,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({ code, expires_at: expiresAt, verified: false }),
+        });
+      } else {
+        await doFetch(`${SUPABASE_URL}/rest/v1/email_verifications`, {
+          method: 'POST',
+          headers: {
+            ...sbHeaders,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({ email, code, expires_at: expiresAt, verified: false }),
+        });
+      }
     }
 
     if (!toEmail) {
