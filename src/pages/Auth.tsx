@@ -244,12 +244,6 @@ const Auth = () => {
       if (!data.user) throw new Error("Signup failed");
 
       const userId = data.user.id;
-      // enqueue welcome email
-      try {
-        fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, email: data.user.email }) });
-      } catch (e) {
-        console.warn('Failed to enqueue welcome email', e);
-      }
       const generatedRefCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
       // Create user profile
@@ -262,6 +256,21 @@ const Auth = () => {
         balance: 50000,
         total_referrals: 0,
       });
+
+      // Send immediate welcome email after signup
+      try {
+        const resp = await fetch('/api/send-welcome-immediate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, email: data.user.email, full_name: signupData.fullName }),
+        });
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => '');
+          console.warn('Immediate signup welcome email failed:', resp.status, txt);
+        }
+      } catch (e) {
+        console.warn('Failed to call send-welcome-immediate after signup', e);
+      }
 
       // Welcome bonus
       await supabase.from("transactions").insert({

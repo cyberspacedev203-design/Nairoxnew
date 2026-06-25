@@ -17,30 +17,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) return res.status(500).json({ error: 'Supabase env not configured' });
 
   try {
+    const { full_name } = req.body || {};
     let toEmail = email || null;
+    let userName = typeof full_name === 'string' && full_name.trim() ? full_name.trim() : '';
+
     if (!toEmail && user_id) {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email,full_name`, {
         headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
       });
       const rows = await r.json();
       toEmail = rows?.[0]?.email || null;
+      if (!userName) userName = rows?.[0]?.full_name || '';
     }
 
     if (!toEmail) return res.status(400).json({ error: 'Recipient email not found' });
-
-    // try to get user's full name for personalization
-    let userName = '';
-    if (user_id) {
-      try {
-        const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=full_name`, {
-          headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
-        });
-        const prj = await pr.json();
-        userName = prj?.[0]?.full_name || '';
-      } catch (e) {
-        userName = '';
-      }
-    }
     if (!userName) {
       userName = (toEmail || '').split('@')[0];
     }
