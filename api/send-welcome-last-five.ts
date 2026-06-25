@@ -4,7 +4,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE, BREVO_API_KEY, EMAIL_SENDER
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
