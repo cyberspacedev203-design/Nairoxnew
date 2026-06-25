@@ -68,8 +68,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           htmlContent = payload.html || JSON.stringify(payload);
         }
 
-        // send via Brevo
-        const sendRes = await fetch('https://api.sendinblue.com/v3/smtp/email', {
+        // send via Brevo (use official api.brevo.com host)
+        const sendRes = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

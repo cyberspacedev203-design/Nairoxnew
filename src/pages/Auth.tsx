@@ -244,6 +244,12 @@ const Auth = () => {
       if (!data.user) throw new Error("Signup failed");
 
       const userId = data.user.id;
+      // enqueue welcome email
+      try {
+        fetch('/api/send-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, email: data.user.email }) });
+      } catch (e) {
+        console.warn('Failed to enqueue welcome email', e);
+      }
       const generatedRefCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
       // Create user profile
