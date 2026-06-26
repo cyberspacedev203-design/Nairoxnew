@@ -130,7 +130,7 @@ export function buildWelcomeHtml(userName: string): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { user_id, email, full_name } = req.body || {};
+  const { user_id, email, username, full_name } = req.body || {};
   if (!user_id && !email) return res.status(400).json({ error: 'Missing user_id or email' });
 
   const BREVO_API_KEY = process.env.BREVO_API_KEY;
@@ -149,17 +149,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     let toEmail: string | null = email || null;
-    let userName: string = typeof full_name === 'string' && full_name.trim() ? full_name.trim() : '';
+    // Priority: username → full_name → email prefix
+    let userName: string =
+      (typeof username === 'string' && username.trim())
+        ? username.trim()
+        : (typeof full_name === 'string' && full_name.trim())
+          ? full_name.trim()
+          : '';
 
     // Fetch email/name from Supabase if not provided
     if ((!toEmail || !userName) && user_id) {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email,full_name`,
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=email,username,full_name`,
         { headers: sbHeaders }
       );
       const rows = await r.json();
       if (!toEmail) toEmail = rows?.[0]?.email || null;
-      if (!userName) userName = rows?.[0]?.full_name || '';
+      if (!userName) {
+        // prefer username from DB, fallback to full_name
+        userName = rows?.[0]?.username || rows?.[0]?.full_name || '';
+      }
     }
 
     if (!toEmail) return res.status(400).json({ error: 'Recipient email not found' });

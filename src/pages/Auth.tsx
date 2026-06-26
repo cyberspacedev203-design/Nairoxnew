@@ -262,7 +262,7 @@ const Auth = () => {
         const resp = await fetch('/api/send-welcome-immediate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, email: data.user.email, full_name: signupData.fullName }),
+          body: JSON.stringify({ user_id: userId, email: data.user.email, username: signupData.username, full_name: signupData.fullName }),
         });
         if (!resp.ok) {
           const txt = await resp.text().catch(() => '');
