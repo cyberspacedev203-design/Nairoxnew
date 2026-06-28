@@ -391,7 +391,7 @@ const Tasks = () => {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("balance")
+        .select("balance, task_progress")
         .eq("id", user.id)
         .single();
 
@@ -411,10 +411,12 @@ const Tasks = () => {
         amount = 8000;
       if (task.id === 5) amount = 15000;
 
-      const newBalance = profile.balance + amount;
+      const currentBalance = Number(profile.balance) || 0;
+      const currentTaskProgress = Number(profile.task_progress) || 0;
+      const newBalance = currentBalance + amount;
 
       // update balance and task progress atomically
-      const newTaskProgress = (profile.task_progress || 0) + amount;
+      const newTaskProgress = currentTaskProgress + amount;
       const completedFlag = newTaskProgress >= 75000;
 
       const { error: updateError } = await supabase
@@ -423,7 +425,8 @@ const Tasks = () => {
         .eq("id", user.id);
 
       if (updateError) {
-        toast.error("Failed to update balance. Try again.");
+        console.error('Profile update failed', updateError);
+        toast.error(`Failed to update balance: ${updateError.message || 'Try again.'}`);
       } else {
         markTaskAsClaimed(task.id);
 
