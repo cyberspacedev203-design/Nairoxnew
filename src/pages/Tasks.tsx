@@ -190,6 +190,13 @@ const ClaimCounter = ({ totalClaims }: { totalClaims: number }) => {
 };
 // ────────────────────────────────────────────────────────────────────────────
 
+interface ActiveTimer {
+  taskId: number;
+  userTaskId: string;
+  startedAt: number;
+  secondsRemaining: number;
+}
+
 const Tasks = () => {
   const navigate = useNavigate();
   const [claimedTasks, setClaimedTasks] = useState<Set<number>>(new Set());
@@ -200,6 +207,10 @@ const Tasks = () => {
   const [totalClaims, setTotalClaims] = useState<number>(0);
   const [taskProgress, setTaskProgress] = useState<number>(0);
   const [taskCompleted, setTaskCompleted] = useState<boolean>(false);
+  
+  // Task timer system state
+  const [activeTimers, setActiveTimers] = useState<Map<number, ActiveTimer>>(new Map());
+  const [completedTasks, setCompletedTasks] = useState<Set<number>>(new Set());
 
   const tasks = [
     {
@@ -213,21 +224,21 @@ const Tasks = () => {
       id: 2,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
     {
       id: 4,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
     {
       id: 6,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://www.effectivegatecpm.com/zrq0krqr7?key=6bbc08a6b74b2538ceb2703f68d77926",
     },
     {
@@ -248,28 +259,28 @@ const Tasks = () => {
       id: 7,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
     {
       id: 8,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
     {
       id: 9,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
     {
       id: 10,
       title: "Visit Sponsor Site",
       description: "Visit our sponsor site and complete the offer",
-      reward: "₦8,000",
+      reward: "₦3,000",
       link: "https://otieu.com/4/10572515",
     },
   ];
@@ -335,6 +346,45 @@ const Tasks = () => {
     })();
   }, []);
 
+  // Timer countdown loop for active tasks
+  useEffect(() => {
+    if (activeTimers.size === 0) return;
+
+    const interval = setInterval(() => {
+      setActiveTimers((prev) => {
+        const updated = new Map(prev);
+        const tasksToVerify: Array<{ userTaskId: string; taskId: number }> = [];
+
+        updated.forEach((timer, taskId) => {
+          // Calculate seconds remaining from server start time
+          const elapsed = (Date.now() - timer.startedAt) / 1000;
+          const remaining = Math.max(0, 10 - elapsed);
+
+          if (remaining > 0) {
+            timer.secondsRemaining = Math.ceil(remaining);
+            updated.set(taskId, timer);
+          } else {
+            // Timer expired, auto-verify
+            tasksToVerify.push({ userTaskId: timer.userTaskId, taskId });
+            updated.delete(taskId);
+          }
+        });
+
+        // Auto-verify once timer expires
+        tasksToVerify.forEach(({ userTaskId, taskId }) => {
+          const task = tasks.find((t) => t.id === taskId);
+          if (task) {
+            handleVerify(userTaskId, task);
+          }
+        });
+
+        return updated;
+      });
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, [activeTimers]);
+
   const handleClaim = async (task: any) => {
     if (isTaskClaimedToday(task.id)) {
       toast.error("Already claimed today! Come back tomorrow.");
@@ -344,25 +394,50 @@ const Tasks = () => {
     setClaimedTasks((prev) => new Set(prev).add(task.id));
 
     try {
-      const pendingKey = `task_${task.id}_pending`;
-      localStorage.setItem(pendingKey, new Date().toISOString());
-      setPendingVerification((prev) => new Set(prev).add(task.id));
-
-      toast.success(
-        "Go complete the task. Return here to verify and claim your reward!",
-      );
-
-      if (task.link) {
-        window.open(task.link, "_self");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please login first");
+        return;
       }
-    } catch (error) {
-      console.error("Error:", error);
-      setClaimedTasks((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(task.id);
-        return newSet;
+
+      // Call /api/start-task to begin the 10-second timer
+      const response = await fetch("/api/start-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, task_id: task.id }),
       });
-      toast.error("Something went wrong");
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to start task");
+      }
+
+      const data = await response.json();
+      const { task_id: userTaskId, started_at, seconds_remaining } = data;
+
+      // Store active timer in state
+      setActiveTimers((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(task.id, {
+          taskId: task.id,
+          userTaskId,
+          startedAt: new Date(started_at).getTime(),
+          secondsRemaining: seconds_remaining,
+        });
+        return newMap;
+      });
+
+      toast.success("Task started! Waiting 10 seconds for verification...");
+
+      // Open link if provided
+      if (task.link) {
+        window.open(task.link, "_blank");
+      }
+    } catch (error: any) {
+      console.error("Error starting task:", error);
+      toast.error(error.message || "Failed to start task");
     } finally {
       setClaimedTasks((prev) => {
         const newSet = new Set(prev);
@@ -372,7 +447,7 @@ const Tasks = () => {
     }
   };
 
-  const handleVerify = async (task: any) => {
+  const handleVerify = async (userTaskId: string, task: any) => {
     setVerifyingTasks((prev) => new Set(prev).add(task.id));
 
     const {
@@ -389,66 +464,48 @@ const Tasks = () => {
     }
 
     try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("balance, task_progress")
-        .eq("id", user.id)
-        .single();
+      // Call /api/verify-task to verify and get reward
+      const response = await fetch("/api/verify-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_task_id: userTaskId, user_id: user.id }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to verify task");
+      }
 
-      let amount = 0;
-      if (task.id === 1 || task.id === 3) amount = 5000;
-      if (
-        task.id === 2 ||
-        task.id === 4 ||
-        task.id === 6 ||
-        task.id === 7 ||
-        task.id === 8 ||
-        task.id === 9 ||
-        task.id === 10
-      )
-        amount = 8000;
-      if (task.id === 5) amount = 15000;
+      const data = await response.json();
+      const { success, reward_added, reward_amount, new_balance, new_task_progress } = data;
 
-      const currentBalance = Number(profile.balance) || 0;
-      const currentTaskProgress = Number(profile.task_progress) || 0;
-      const newBalance = currentBalance + amount;
+      if (!success) {
+        throw new Error(data.message || "Task verification failed");
+      }
 
-      // update balance and task progress atomically
-      const newTaskProgress = currentTaskProgress + amount;
-      const completedFlag = newTaskProgress >= 75000;
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ balance: newBalance, task_progress: newTaskProgress, task_completed: completedFlag })
-        .eq("id", user.id);
-
-      if (updateError) {
-        console.error('Profile update failed', updateError);
-        toast.error(`Failed to update balance: ${updateError.message || 'Try again.'}`);
-      } else {
+      if (reward_added) {
+        // Update local state with new balances
         markTaskAsClaimed(task.id);
-
-        const pendingKey = `task_${task.id}_pending`;
-        localStorage.removeItem(pendingKey);
-        setPendingVerification((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(task.id);
-          return newSet;
+        
+        // Remove from active timers
+        setActiveTimers((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(task.id);
+          return newMap;
         });
 
+        // Mark as completed
+        setCompletedTasks((prev) => new Set(prev).add(task.id));
 
-        // ── Increment total claim counter ──────────────────────────────
+        // Update task progress
+        setTaskProgress(new_task_progress);
+        if (new_task_progress >= 75000) setTaskCompleted(true);
+
+        // Increment total claims counter
         const newTotal = incrementTotalClaims();
 
-        // update local UI task progress
-        setTaskProgress((p) => p + amount);
-        if (newTaskProgress >= 75000) setTaskCompleted(true);
-
-        // If they just hit 100, trigger upgrade
+        // Check if just upgraded
         if (newTotal === 100) {
-          // Update the user's profile to mark as upgraded
           await supabase
             .from("profiles")
             .update({ is_upgraded: true } as any)
@@ -458,13 +515,16 @@ const Tasks = () => {
             duration: 6000,
           });
         } else {
-          toast.success(`${task.reward} added to your balance!`);
+          toast.success(`₦${reward_amount?.toLocaleString()} added to your balance!`);
         }
-        // ──────────────────────────────────────────────────────────────
+      } else {
+        // Still verifying, show how long to wait
+        const secondsWait = data.seconds_remaining || 10;
+        toast.info(`Please wait ${secondsWait} more seconds...`);
       }
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("Something went wrong");
+    } catch (error: any) {
+      console.error("Error verifying task:", error);
+      toast.error(error.message || "Failed to verify task");
     } finally {
       setVerifyingTasks((prev) => {
         const newSet = new Set(prev);
@@ -509,6 +569,9 @@ const Tasks = () => {
           const isProcessing = claimedTasks.has(task.id);
           const isPending = pendingVerification.has(task.id);
           const isVerifying = verifyingTasks.has(task.id);
+          const isCompleted = completedTasks.has(task.id);
+          const activeTimer = activeTimers.get(task.id);
+          const hasActiveTimer = !!activeTimer;
 
           return (
             <div key={task.id}>
@@ -519,19 +582,24 @@ const Tasks = () => {
                     <p className="text-sm text-muted-foreground mb-3">
                       {task.description}
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-primary">
                         {task.reward}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         reward
                       </span>
-                      {isPending && (
-                        <span className="text-xs bg-yellow-500 text-white px-2 py-1 rounded-full">
-                          ⏳ Pending Verification
+                      {hasActiveTimer && (
+                        <span className="text-xs bg-yellow-500 text-white px-2 py-1 rounded-full font-semibold">
+                          ⏳ Verifying... {activeTimer?.secondsRemaining || 10}s
                         </span>
                       )}
-                      {isClaimed && !isPending && (
+                      {isCompleted && !hasActiveTimer && (
+                        <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">
+                          ✅ Verified
+                        </span>
+                      )}
+                      {isClaimed && !isCompleted && !hasActiveTimer && (
                         <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">
                           ✓ Claimed Today
                         </span>
@@ -545,29 +613,37 @@ const Tasks = () => {
                   </div>
 
                   <Button
-                    onClick={() =>
-                      isPending ? handleVerify(task) : handleClaim(task)
-                    }
-                    disabled={isClaimed || isProcessing || isVerifying}
-                    className={`px-6 py-3 font-bold ${
-                      isClaimed
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : isPending
-                          ? "bg-yellow-500 hover:bg-yellow-600"
-                          : isProcessing || isVerifying
-                            ? "bg-blue-400 cursor-not-allowed"
-                            : "bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                    onClick={() => {
+                      if (hasActiveTimer && activeTimer?.userTaskId) {
+                        handleVerify(activeTimer.userTaskId, task);
+                      } else {
+                        handleClaim(task);
+                      }
+                    }}
+                    disabled={isClaimed || isProcessing || isVerifying || isCompleted}
+                    className={`px-6 py-3 font-bold whitespace-nowrap ${
+                      isCompleted
+                        ? "bg-green-500 cursor-not-allowed"
+                        : isClaimed && !hasActiveTimer
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : hasActiveTimer
+                            ? "bg-yellow-500 hover:bg-yellow-600"
+                            : isProcessing || isVerifying
+                              ? "bg-blue-400 cursor-not-allowed"
+                              : "bg-gradient-to-r from-primary to-secondary hover:opacity-90"
                     }`}
                   >
                     {isProcessing
                       ? "Processing..."
                       : isVerifying
-                        ? "Verifying..."
-                        : isPending
-                          ? "Verify & Claim"
-                          : isClaimed
-                            ? "Claimed Today"
-                            : "Claim Now"}
+                        ? `Verifying...`
+                        : hasActiveTimer
+                          ? `Complete & Verify`
+                          : isCompleted
+                            ? "✅ Completed"
+                            : isClaimed
+                              ? "Claimed Today"
+                              : "Claim Now"}
                   </Button>
                 </div>
               </Card>
