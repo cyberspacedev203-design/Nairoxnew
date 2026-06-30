@@ -7,7 +7,6 @@ import { FloatingActionButton } from "@/components/FloatingActionButton";
 import TaskProgressBar from "@/components/TaskProgressBar";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveTimers } from "@/hooks/use-active-timers";
 
 // ── Claim Counter Visual ────────────────────────────────────────────────────
 const ClaimCounter = ({ totalClaims }: { totalClaims: number }) => {
@@ -192,9 +191,9 @@ const ClaimCounter = ({ totalClaims }: { totalClaims: number }) => {
 // ────────────────────────────────────────────────────────────────────────────
 
 interface ActiveTimer {
+  id: string;
   taskId: number;
-  userTaskId: string;
-  startedAt: number;
+  startedAt: string;
   secondsRemaining: number;
 }
 
@@ -209,6 +208,7 @@ const Tasks = () => {
   const [taskProgress, setTaskProgress] = useState<number>(0);
   const [taskCompleted, setTaskCompleted] = useState<boolean>(false);
   const [completedTasks, setCompletedTasks] = useState<Set<number>>(new Set());
+  const [activeTimers, setActiveTimers] = useState<Map<number, ActiveTimer>>(new Map());
 
   const tasks = [
     {
@@ -351,23 +351,22 @@ const Tasks = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get all active tasks (status = 'verifying')
         const { data: activeTasks, error } = await supabase
-          .from('user_tasks')
-          .select('id, task_id, started_at')
-          .eq('user_id', user.id)
-          .eq('status', 'verifying')
-          .gt('started_at', new Date(Date.now() - 15000).toISOString()); // Tasks started in last 15 seconds
+          .from("user_tasks")
+          .select("id, task_id, started_at")
+          .eq("user_id", user.id)
+          .eq("status", "verifying")
+          .gt("started_at", new Date(Date.now() - 15000).toISOString());
 
         if (error) {
-          console.warn('Could not fetch active timers:', error);
+          console.warn("Could not fetch active timers:", error);
           return;
         }
 
         const timersMap = new Map<number, ActiveTimer>();
         const now = Date.now();
 
-        activeTasks.forEach((task) => {
+        (activeTasks ?? []).forEach((task: any) => {
           const startedTime = new Date(task.started_at).getTime();
           const elapsedSeconds = (now - startedTime) / 1000;
           const remaining = Math.max(0, 10 - elapsedSeconds);
@@ -382,36 +381,25 @@ const Tasks = () => {
 
         setActiveTimers(timersMap);
       } catch (err) {
-        console.error('Error fetching timers:', err);
+        console.error("Error fetching timers:", err);
       }
     };
 
-    // Fetch immediately on mount
     fetchActiveTimers();
-
-    // Then set interval to refetch every second (strict server-side accuracy)
-    const interval = setInterval(fetchActiveTimers, 1000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(fetchActiveTimers, 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
-  // Timer countdown loop for active tasks
   useEffect(() => {
-    if (activeTasks.size === 0) return;
-
-    const interval = setInterval(() => {
-      activeTasks.forEach((task) => {
-        // If timer just expired, auto-verify
-        if (task.secondsRemaining <= 0) {
-          const taskDef = tasks.find((t) => t.id === task.taskId);
-          if (taskDef) {
-            handleVerify(task.id, taskDef);
-          }
+    activeTimers.forEach((timer) => {
+      if (timer.secondsRemaining === 0 && !verifyingTasks.has(timer.taskId)) {
+        const task = tasks.find((t) => t.id === timer.taskId);
+        if (task) {
+          void handleVerify(timer.id, task);
         }
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [activeTasks, tasks]);
+      }
+    });
+  }, [activeTimers, tasks, verifyingTasks]);
 
   const handleClaim = async (task: any) => {
     if (isTaskClaimedToday(task.id)) {
@@ -430,7 +418,6 @@ const Tasks = () => {
         return;
       }
 
-      // Call /api/start-task to begin the 10-second timer
       const response = await fetch("/api/start-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -443,22 +430,23 @@ const Tasks = () => {
       }
 
       const data = await response.json();
+      const startedAt = data.started_at;
+      const secondsRemaining = data.seconds_remaining ?? 10;
+
+      setActiveTimers((prev) => {
+        const next = new Map(prev);
+        next.set(task.id, {
+          id: data.task_id,
+          taskId: task.id,
+          startedAt,
+          secondsRemaining,
+        });
+        return next;
+      });
+
       toast.success("Task started! Waiting 10 seconds for verification...");
 
-      // Refetch active tasks from DB so global banner updates
-      await refetchActiveTasks();
-
-      // Open link if provided
-        const data = await response.json();
-        toast.success("Task started! Waiting 10 seconds for verification...");
-        // Timers will auto-update from DB every second via useEffect
-
-        // Open link if provided
       if (task.link) {
-          toast.success("Task started! Waiting 10 seconds for verification...");
-          // Timers auto-update from DB every second via useEffect
-
-          if (task.link) {
         window.open(task.link, "_blank");
       }
     } catch (error: any) {
@@ -503,7 +491,7 @@ const Tasks = () => {
       }
 
       const data = await response.json();
-      const { success, reward_added, reward_amount, new_balance, new_task_progress } = data;
+      const { success, reward_added, reward_amount, new_task_progress } = data;
 
       if (!success) {
         throw new Error(data.message || "Task verification failed");
@@ -512,9 +500,6 @@ const Tasks = () => {
       if (reward_added) {
         // Update local state with new balances
         markTaskAsClaimed(task.id);
-        
-        // Refetch active tasks to update global timer
-        await refetchActiveTasks();
 
         // Mark as completed
         setCompletedTasks((prev) => new Set(prev).add(task.id));
@@ -592,11 +577,9 @@ const Tasks = () => {
           const isPending = pendingVerification.has(task.id);
           const isVerifying = verifyingTasks.has(task.id);
           const isCompleted = completedTasks.has(task.id);
-          
-          // Find active timer from global hook by taskId
-          const activeTimer = Array.from(activeTasks.values()).find(
-            (t) => t.taskId === task.id,
-          );
+
+          // Find active timer by taskId
+          const activeTimer = activeTimers.get(task.id);
           const hasActiveTimer = !!activeTimer;
 
           return (
@@ -700,17 +683,3 @@ const Tasks = () => {
 };
 
 export default Tasks;
-
-  // Auto-verify tasks when timer expires (10 seconds = 0)
-  useEffect(() => {
-    activeTimers.forEach((timer) => {
-      if (timer.secondsRemaining === 0 && !verifyingTasks.has(timer.taskId)) {
-        const task = tasks.find((t) => t.id === timer.taskId);
-        if (task) {
-          handleVerify(timer.id, task);
-        }
-      }
-    });
-  }, [activeTimers]);
-
-  const [activeTimers, setActiveTimers] = useState<Map<number, ActiveTimer>>(new Map());
