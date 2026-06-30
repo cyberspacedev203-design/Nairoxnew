@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
+import { ActiveTaskBanner } from "@/components/ActiveTaskBanner";
 import Auth from "./pages/Auth";
 import Welcome from "./pages/Welcome";
 import SplashScreen from "./components/SplashScreen";
@@ -44,6 +45,10 @@ const App = () => {
         <BrowserRouter>
           {/* Splash overlay on first full load (includes refresh). Hides after animation */}
           {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+          
+          {/* Global task timer banner - shows on all pages */}
+          <ActiveTaskBanner />
+          
           <Routes>
             <Route path="/" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
