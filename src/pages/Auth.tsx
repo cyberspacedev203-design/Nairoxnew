@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Send } from "lucide-react";
+import { Send, Eye, EyeOff } from "lucide-react";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || "";
@@ -49,9 +49,24 @@ const Auth = () => {
     password: "",
   });
 
+  const [resetMode, setResetMode] = useState(false);
+  const [resetData, setResetData] = useState({
+    email: "",
+    code: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [otpSentReset, setOtpSentReset] = useState(false);
+
   const [otp, setOtp] = useState("");
   const [otpRequested, setOtpRequested] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
+
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -161,7 +176,7 @@ const Auth = () => {
     checkSession();
   }, [navigate]);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     // basic validation
@@ -262,7 +277,7 @@ const Auth = () => {
         const resp = await fetch('/api/send-welcome-immediate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, email: data.user.email, username: signupData.username, full_name: signupData.fullName }),
+          body: JSON.stringify({ user_id: userId, email: data.user.email, full_name: signupData.fullName }),
         });
         if (!resp.ok) {
           const txt = await resp.text().catch(() => '');
@@ -342,7 +357,7 @@ const Auth = () => {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -389,6 +404,82 @@ const Auth = () => {
       navigate("/dashboard", { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Invalid email or password");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendResetOtp = async () => {
+    if (!resetData.email.trim()) {
+      toast.error("Please enter your email");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetData.email.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not send OTP. Please try again.");
+      }
+      setOtpSentReset(true);
+      toast.success("OTP sent to your email. Check your inbox.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to send OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!resetData.email.trim()) {
+      toast.error("Please enter your email");
+      return;
+    }
+    if (!resetData.code.trim()) {
+      toast.error("Please enter the OTP sent to your email");
+      return;
+    }
+    if (resetData.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (resetData.password !== resetData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetData.email.trim(),
+          code: resetData.code.trim(),
+          new_password: resetData.password,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Unable to reset password");
+      }
+
+      toast.success("Password changed successfully. Please login.");
+      setResetMode(false);
+      setOtpSentReset(false);
+      setResetData({ email: "", code: "", password: "", confirmPassword: "" });
+      setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Password reset failed");
     } finally {
       setIsLoading(false);
     }
@@ -485,26 +576,48 @@ const Auth = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter Your Password"
-                    value={signupData.password}
-                    onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showSignupPassword ? "text" : "password"}
+                      placeholder="Enter Your Password"
+                      value={signupData.password}
+                      onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                      onClick={() => setShowSignupPassword((prev) => !prev)}
+                      aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                    >
+                      {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="Retype Your Password"
-                    value={signupData.confirmPassword}
-                    onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showSignupConfirmPassword ? "text" : "password"}
+                      placeholder="Retype Your Password"
+                      value={signupData.confirmPassword}
+                      onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                      onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
+                      aria-label={showSignupConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showSignupConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -577,45 +690,180 @@ const Auth = () => {
             </TabsContent>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={loginData.email}
-                    onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                    required
-                  />
-                </div>
-                {/* Login captcha (unstyled) */}
-                <div className="mt-2">
-                  {HCAPTCHA_SITE_KEY ? (
-                    <div id="hc-widget-login" />
-                  ) : TURNSTILE_SITE_KEY ? (
-                    <div id="cf-turnstile-login" />
-                  ) : null}
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-semibold"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Logging in..." : "Login"}
-                </Button>
-              </form>
+              {!resetMode ? (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={loginData.email}
+                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={loginData.password}
+                        onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                        onClick={() => setShowLoginPassword((prev) => !prev)}
+                        aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                      >
+                        {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm text-muted-foreground">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetMode(true);
+                        setResetData((prev) => ({ ...prev, email: loginData.email }));
+                      }}
+                      className="text-primary underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  {/* Login captcha (unstyled) */}
+                  <div className="mt-2">
+                    {HCAPTCHA_SITE_KEY ? (
+                      <div id="hc-widget-login" />
+                    ) : TURNSTILE_SITE_KEY ? (
+                      <div id="cf-turnstile-login" />
+                    ) : null}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-semibold"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Logging in..." : "Login"}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="Enter your account email"
+                      value={resetData.email}
+                      onChange={(e) => setResetData({ ...resetData, email: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="reset-otp">OTP</Label>
+                      <Input
+                        id="reset-otp"
+                        placeholder="Enter OTP"
+                        value={resetData.code}
+                        onChange={(e) => setResetData({ ...resetData, code: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-10 whitespace-nowrap"
+                      onClick={handleSendResetOtp}
+                      disabled={isLoading || !resetData.email.trim()}
+                    >
+                      {otpSentReset ? "Resend OTP" : "Send OTP"}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-password">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="reset-password"
+                        type={showResetPassword ? "text" : "password"}
+                        placeholder="Enter new password"
+                        value={resetData.password}
+                        onChange={(e) => setResetData({ ...resetData, password: e.target.value })}
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                        onClick={() => setShowResetPassword((prev) => !prev)}
+                        aria-label={showResetPassword ? "Hide password" : "Show password"}
+                      >
+                        {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-confirm-password">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="reset-confirm-password"
+                        type={showResetConfirmPassword ? "text" : "password"}
+                        placeholder="Retype new password"
+                        value={resetData.confirmPassword}
+                        onChange={(e) => setResetData({ ...resetData, confirmPassword: e.target.value })}
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+                        onClick={() => setShowResetConfirmPassword((prev) => !prev)}
+                        aria-label={showResetConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showResetConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    A one-time code will be sent to your email. Use it to reset your password.
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-semibold"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Resetting..." : "Reset Password"}
+                  </Button>
+
+                  <div className="text-center text-sm text-muted-foreground">
+                    Remember your password?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetMode(false);
+                        setOtpSentReset(false);
+                        setResetData({ email: "", code: "", password: "", confirmPassword: "" });
+                      }}
+                      className="text-primary underline"
+                    >
+                      Back to login
+                    </button>
+                  </div>
+                </form>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
