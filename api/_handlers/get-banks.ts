@@ -1,13 +1,11 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-
 // Cache for banks data
 let cachedBanks: any[] | null = null;
 let cacheTimestamp: number | null = null;
 const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+  req: any,
+  res: any
 ) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });

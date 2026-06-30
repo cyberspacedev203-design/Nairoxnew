@@ -1,5 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 // Sends a styled welcome email immediately via Brevo after signup.
 // Required env: BREVO_API_KEY, EMAIL_SENDER
 // Optional env: SUPABASE_URL, SUPABASE_SERVICE_ROLE (only needed if email not in body)
@@ -110,7 +108,7 @@ export function buildWelcomeHtml(userName: string): string {
 </html>`;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { user_id, email, username, full_name } = req.body || {};

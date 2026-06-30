@@ -1,9 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 // Start a task timer for a user. Records the start time in the database.
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { user_id, task_id } = req.body || {};

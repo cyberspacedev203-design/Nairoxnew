@@ -1,12 +1,10 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 // Sends an OTP verification email directly via Brevo (no queue).
 // Required env vars:
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE
 //   BREVO_API_KEY
 //   EMAIL_SENDER  (defaults to no-reply@nairox9ja.com)
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { user_id, email } = req.body || {};
