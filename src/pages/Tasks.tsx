@@ -356,7 +356,7 @@ const Tasks = () => {
           .select("id, task_id, started_at")
           .eq("user_id", user.id)
           .eq("status", "verifying")
-          .gt("started_at", new Date(Date.now() - 15000).toISOString());
+          .gt("started_at", new Date(Date.now() - 20000).toISOString());
 
         if (error) {
           console.warn("Could not fetch active timers:", error);
@@ -391,7 +391,7 @@ const Tasks = () => {
           prevTimers.forEach((timer, taskId) => {
             if (!dbTaskIds.has(taskId)) {
               const ageSeconds = (now - new Date(timer.startedAt).getTime()) / 1000;
-              if (ageSeconds < 2) {
+              if (ageSeconds < 15) {
                 timersMap.set(taskId, timer);
                 console.log(`Keeping local timer for task ${taskId} (age=${ageSeconds}s)`);
               }
@@ -530,15 +530,38 @@ const Tasks = () => {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to verify task");
+        let errorMessage = `Failed to verify task (${response.status})`;
+        try {
+          const error = await response.json();
+          errorMessage = error?.error || error?.message || errorMessage;
+        } catch {
+          const text = await response.text().catch(() => "");
+          if (text) errorMessage = text;
+        }
+
+        if (response.status === 405) {
+          toast.error("Task verification is not available right now. Please try again.");
+          return;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      const data = await response.json().catch((err) => {
+        console.error("Failed to parse verify-task response JSON:", err);
+        return null;
+      });
+
+      if (!data) {
+        throw new Error("Invalid response from verify-task endpoint");
+      }
+
       const { success, reward_added, reward_amount, new_task_progress } = data;
 
       if (!success) {
-        throw new Error(data.message || "Task verification failed");
+        const waitSeconds = data.seconds_remaining ?? 10;
+        toast.info(data.message || `Please wait ${waitSeconds} more seconds before verifying.`);
+        return;
       }
 
       if (reward_added) {
