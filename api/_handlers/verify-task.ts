@@ -7,8 +7,9 @@ export default async function handler(req: any, res: any) {
   const { user_task_id, user_id } = req.body || {};
   if (!user_task_id || !user_id) return res.status(400).json({ error: 'Missing user_task_id or user_id' });
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+  const processEnv = (globalThis as any).process?.env ?? {};
+  const SUPABASE_URL = processEnv.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE = processEnv.SUPABASE_SERVICE_ROLE;
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
     return res.status(500).json({ error: 'Supabase env not configured' });
