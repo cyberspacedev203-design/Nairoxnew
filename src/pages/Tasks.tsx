@@ -552,6 +552,23 @@ const Tasks = () => {
         setTaskProgress(new_task_progress);
         if (new_task_progress >= 75000) setTaskCompleted(true);
 
+        // Reload full profile to get updated balance
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('balance, task_progress, task_completed')
+            .eq('id', user.id)
+            .single();
+          
+          if (!error && data) {
+            console.log('Reloaded profile after reward:', data);
+            // Emit event to notify other components of balance update
+            window.dispatchEvent(new CustomEvent('balanceUpdated', { detail: { balance: data.balance } }));
+          }
+        } catch (err) {
+          console.warn('Could not reload profile after reward', err);
+        }
+
         // Increment total claims counter
         const newTotal = incrementTotalClaims();
 

@@ -147,6 +147,19 @@ const Dashboard = () => {
     }
   }, [lastClaimTime]);
 
+  useEffect(() => {
+    // Listen for balance updates from other pages (e.g., Tasks page)
+    const handleBalanceUpdate = (event: any) => {
+      console.log('Balance updated event received:', event.detail);
+      if (user) {
+        loadProfile(user.id);
+      }
+    };
+
+    window.addEventListener('balanceUpdated', handleBalanceUpdate);
+    return () => window.removeEventListener('balanceUpdated', handleBalanceUpdate);
+  }, [user]);
+
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
