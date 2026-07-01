@@ -1,15 +1,13 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 // Start a task timer for a user. Records the start time in the database.
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE
 
-const setCorsHeaders = (res: VercelResponse) => {
+const setCorsHeaders = (res: any) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   setCorsHeaders(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -17,12 +15,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { user_id, task_id } = req.body || {};
   if (!user_id || task_id === undefined) return res.status(400).json({ error: 'Missing user_id or task_id' });
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+  const processEnv = (globalThis as any).process?.env ?? {};
+  const SUPABASE_URL = processEnv.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE = processEnv.SUPABASE_SERVICE_ROLE;
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
     return res.status(500).json({ error: 'Supabase env not configured' });
   }
+
+  const sbHeaders = {
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+    apikey: SUPABASE_SERVICE_ROLE,
+  };
 
   try {
     const now = new Date().toISOString();
@@ -31,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const listRes = await fetch(
       `${SUPABASE_URL}/rest/v1/user_tasks?user_id=eq.${user_id}&task_id=eq.${task_id}&status=eq.verifying&order=started_at.desc&limit=1`,
       {
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+        headers: sbHeaders,
       }
     );
 
@@ -59,8 +63,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
         Prefer: 'return=representation',
+        ...sbHeaders,
       },
       body: JSON.stringify({
         user_id,

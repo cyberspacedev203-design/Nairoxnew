@@ -133,6 +133,8 @@ export type Database = {
           referral_earnings: number | null
           referred_by: string | null
           standard_activation_unlocked: boolean | null
+          task_progress: number | null
+          task_completed: boolean | null
           total_referrals: number | null
           updated_at: string | null
           withdrawal_count: number | null
@@ -149,6 +151,8 @@ export type Database = {
           referral_earnings?: number | null
           referred_by?: string | null
           standard_activation_unlocked?: boolean | null
+          task_progress?: number | null
+          task_completed?: boolean | null
           total_referrals?: number | null
           updated_at?: string | null
           withdrawal_count?: number | null
@@ -165,6 +169,8 @@ export type Database = {
           referral_earnings?: number | null
           referred_by?: string | null
           standard_activation_unlocked?: boolean | null
+          task_progress?: number | null
+          task_completed?: boolean | null
           total_referrals?: number | null
           updated_at?: string | null
           withdrawal_count?: number | null

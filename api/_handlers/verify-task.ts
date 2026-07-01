@@ -14,12 +14,17 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Supabase env not configured' });
   }
 
+  const sbHeaders = {
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+    apikey: SUPABASE_SERVICE_ROLE,
+  };
+
   try {
     // Fetch the user_task record
     const taskRes = await fetch(
       `${SUPABASE_URL}/rest/v1/user_tasks?id=eq.${user_task_id}&user_id=eq.${user_id}&select=*`,
       {
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+        headers: sbHeaders,
       }
     );
 
@@ -69,7 +74,7 @@ export default async function handler(req: any, res: any) {
     const profileRes = await fetch(
       `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user_id}&select=balance,task_progress`,
       {
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+        headers: sbHeaders,
       }
     );
 
@@ -95,7 +100,7 @@ export default async function handler(req: any, res: any) {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+        ...sbHeaders,
       },
       body: JSON.stringify({
         balance: newBalance,
@@ -115,7 +120,7 @@ export default async function handler(req: any, res: any) {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+        ...sbHeaders,
       },
       body: JSON.stringify({
         status: 'completed',

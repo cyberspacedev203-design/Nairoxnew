@@ -14,6 +14,11 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Supabase env not configured' });
   }
 
+  const sbHeaders = {
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
+    apikey: SUPABASE_SERVICE_ROLE,
+  };
+
   try {
     const now = new Date().toISOString();
 
@@ -21,7 +26,7 @@ export default async function handler(req: any, res: any) {
     const listRes = await fetch(
       `${SUPABASE_URL}/rest/v1/user_tasks?user_id=eq.${user_id}&task_id=eq.${task_id}&status=eq.verifying&order=started_at.desc&limit=1`,
       {
-        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}` },
+        headers: sbHeaders,
       }
     );
 
@@ -49,8 +54,8 @@ export default async function handler(req: any, res: any) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE}`,
         Prefer: 'return=representation',
+        ...sbHeaders,
       },
       body: JSON.stringify({
         user_id,
