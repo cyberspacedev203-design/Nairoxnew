@@ -81,7 +81,15 @@ export default async function handler(req: any, res: any) {
     }
 
     const records = await insertRes.json();
+    console.log('Insert response records:', records);
     const taskRecord = Array.isArray(records) ? records[0] : records;
+
+    if (!taskRecord) {
+      console.error('No record returned from insert');
+      return res.status(502).json({ error: 'No record returned from insert' });
+    }
+
+    console.log('Returning task record:', taskRecord);
 
     return res.status(200).json({
       success: true,

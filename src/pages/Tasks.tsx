@@ -363,23 +363,43 @@ const Tasks = () => {
           return;
         }
 
-        const timersMap = new Map<number, ActiveTimer>();
+        console.log('Fetched active tasks from DB:', activeTasks);
+
         const now = Date.now();
 
-        (activeTasks ?? []).forEach((task: any) => {
-          const startedTime = new Date(task.started_at).getTime();
-          const elapsedSeconds = (now - startedTime) / 1000;
-          const remaining = Math.max(0, 10 - elapsedSeconds);
+        setActiveTimers((prevTimers) => {
+          const timersMap = new Map(prevTimers);
+          const dbTaskIds = new Set<number>();
 
-          timersMap.set(task.task_id, {
-            id: task.id,
-            taskId: task.task_id,
-            startedAt: task.started_at,
-            secondsRemaining: Math.ceil(remaining),
+          (activeTasks ?? []).forEach((task: any) => {
+            const startedTime = new Date(task.started_at).getTime();
+            const elapsedSeconds = (now - startedTime) / 1000;
+            const remaining = Math.max(0, 10 - elapsedSeconds);
+
+            console.log(`Task ${task.task_id}: elapsed=${elapsedSeconds}s, remaining=${remaining}s`);
+
+            dbTaskIds.add(task.task_id);
+            timersMap.set(task.task_id, {
+              id: task.id,
+              taskId: task.task_id,
+              startedAt: task.started_at,
+              secondsRemaining: Math.ceil(remaining),
+            });
           });
-        });
 
-        setActiveTimers(timersMap);
+          // Keep any local timers that haven't synced to DB yet (within 2 seconds of creation)
+          prevTimers.forEach((timer, taskId) => {
+            if (!dbTaskIds.has(taskId)) {
+              const ageSeconds = (now - new Date(timer.startedAt).getTime()) / 1000;
+              if (ageSeconds < 2) {
+                timersMap.set(taskId, timer);
+                console.log(`Keeping local timer for task ${taskId} (age=${ageSeconds}s)`);
+              }
+            }
+          });
+
+          return timersMap;
+        });
       } catch (err) {
         console.error("Error fetching timers:", err);
       }
@@ -424,13 +444,17 @@ const Tasks = () => {
         body: JSON.stringify({ user_id: user.id, task_id: task.id }),
       });
 
+      console.log('start-task response status:', response.status);
+
       let data: any;
       if (!response.ok) {
         try {
           const error = await response.json();
+          console.error('start-task error response:', error);
           throw new Error(error?.error || error?.message || "Failed to start task");
-        } catch {
+        } catch (e: any) {
           const text = await response.text().catch(() => "");
+          console.error('start-task error text:', text);
           throw new Error(text || "Failed to start task");
         }
       }
@@ -440,17 +464,27 @@ const Tasks = () => {
       } catch {
         throw new Error("Invalid response from start-task endpoint");
       }
+
+      console.log('start-task response:', data);
+
       const startedAt = data.started_at;
       const secondsRemaining = data.seconds_remaining ?? 10;
+      const taskId = data.task_id || data.id;
+
+      if (!taskId) {
+        console.error('No task_id in response:', data);
+        throw new Error("Missing task_id in response");
+      }
 
       setActiveTimers((prev) => {
         const next = new Map(prev);
         next.set(task.id, {
-          id: data.task_id,
+          id: taskId,
           taskId: task.id,
           startedAt,
           secondsRemaining,
         });
+        console.log('Updated activeTimers:', next);
         return next;
       });
 
