@@ -424,12 +424,22 @@ const Tasks = () => {
         body: JSON.stringify({ user_id: user.id, task_id: task.id }),
       });
 
+      let data: any;
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to start task");
+        try {
+          const error = await response.json();
+          throw new Error(error?.error || error?.message || "Failed to start task");
+        } catch {
+          const text = await response.text().catch(() => "");
+          throw new Error(text || "Failed to start task");
+        }
       }
 
-      const data = await response.json();
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("Invalid response from start-task endpoint");
+      }
       const startedAt = data.started_at;
       const secondsRemaining = data.seconds_remaining ?? 10;
 
